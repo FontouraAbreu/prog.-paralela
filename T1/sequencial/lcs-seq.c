@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef max
 #define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
@@ -11,49 +12,86 @@ typedef unsigned short mtype;
 /* Read sequence from a file to a char vector.
  Filename is passed as parameter */
 
-char* read_seq(char *fname) {
-	//file pointer
-	FILE *fseq = NULL;
-	//sequence size
-	long size = 0;
-	//sequence pointer
-	char *seq = NULL;
-	//sequence index
-	int i = 0;
+// char* read_seq(char *fname) {
+// 	//file pointer
+// 	FILE *fseq = NULL;
+// 	//sequence size
+// 	long size = 0;
+// 	//sequence pointer
+// 	char *seq = NULL;
+// 	//sequence index
+// 	int i = 0;
 
-	//open file
-	fseq = fopen(fname, "rt");
-	if (fseq == NULL ) {
-		printf("Error reading file %s\n", fname);
-		exit(1);
-	}
+// 	//open file
+// 	fseq = fopen(fname, "rt");
+// 	if (fseq == NULL ) {
+// 		printf("Error reading file %s\n", fname);
+// 		exit(1);
+// 	}
 
-	//find out sequence size to allocate memory afterwards
-	fseek(fseq, 0L, SEEK_END);
-	size = ftell(fseq);
-	rewind(fseq);
+// 	//find out sequence size to allocate memory afterwards
+// 	fseek(fseq, 0L, SEEK_END);
+// 	size = ftell(fseq);
+// 	rewind(fseq);
 
-	//allocate memory (sequence)
-	seq = (char *) calloc(size + 1, sizeof(char));
-	if (seq == NULL ) {
-		printf("Erro allocating memory for sequence %s.\n", fname);
-		exit(1);
-	}
+// 	//allocate memory (sequence)
+// 	seq = (char *) calloc(size + 1, sizeof(char));
+// 	if (seq == NULL ) {
+// 		printf("Erro allocating memory for sequence %s.\n", fname);
+// 		exit(1);
+// 	}
 
-	//read sequence from file
-	while (!feof(fseq)) {
-		seq[i] = fgetc(fseq);
-		if ((seq[i] != '\n') && (seq[i] != EOF))
-			i++;
-	}
-	//insert string terminator
-	seq[i] = '\0';
+// 	//read sequence from file
+// 	while (!feof(fseq)) {
+// 		seq[i] = fgetc(fseq);
+// 		if ((seq[i] != '\n') && (seq[i] != EOF))
+// 			i++;
+// 	}
+// 	//insert string terminator
+// 	seq[i] = '\0';
 
-	//close file
-	fclose(fseq);
+// 	//close file
+// 	fclose(fseq);
 
-	//return sequence pointer
-	return seq;
+// 	//return sequence pointer
+// 	return seq;
+// }
+
+
+char* read_seq(char *fname, int line) {
+    FILE *fseq = fopen(fname, "rt");
+    if (fseq == NULL) {
+        printf("Error reading file %s\n", fname);
+        exit(1);
+    }
+
+    char buffer[1024]; // temporary buffer for reading lines
+    int current_line = 0;
+
+    // Read lines until the desired one
+    while (fgets(buffer, sizeof(buffer), fseq)) {
+        if (current_line == line) {
+            size_t len = strcspn(buffer, "\n"); // remove newline if present
+            buffer[len] = '\0';
+
+            char *seq = (char *)malloc((len + 1) * sizeof(char));
+            if (seq == NULL) {
+                printf("Error allocating memory.\n");
+                fclose(fseq);
+                exit(1);
+            }
+
+            strcpy(seq, buffer);
+            fclose(fseq);
+            return seq;
+        }
+        current_line++;
+    }
+
+    // If the line wasn't found
+    printf("Line %d not found in file %s\n", line, fname);
+    fclose(fseq);
+    exit(1);
 }
 
 mtype ** allocateScoreMatrix(int sizeA, int sizeB) {
@@ -130,7 +168,17 @@ void freeScoreMatrix(mtype **scoreMatrix, int sizeB) {
 	free(scoreMatrix);
 }
 
+clock_t start, end;
+double cpu_time_used;
+
 int main(int argc, char ** argv) {
+	if (argc != 2) {
+		printf("Usage: %s <fileA> <fileB>\n", argv[0]);
+		exit(1);
+	}
+
+	start = clock(); // Start the timer
+
 	// sequence pointers for both sequences
 	char *seqA, *seqB;
 
@@ -138,8 +186,9 @@ int main(int argc, char ** argv) {
 	int sizeA, sizeB;
 
 	//read both sequences
-	seqA = read_seq("fileA.in");
-	seqB = read_seq("fileB.in");
+	seqA = read_seq(argv[1], 0);
+	seqB = read_seq(argv[1], 1);
+
 
 	//find out sizes
 	sizeA = strlen(seqA);
@@ -165,6 +214,11 @@ int main(int argc, char ** argv) {
 
 	//free score matrix
 	freeScoreMatrix(scoreMatrix, sizeB);
+
+	end = clock(); // End the timer
+	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+	printf("Time taken: %f seconds\n", cpu_time_used);
 
 	return EXIT_SUCCESS;
 }
