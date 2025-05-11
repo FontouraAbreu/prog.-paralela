@@ -61,21 +61,99 @@ mtype ** allocateScoreMatrix(int sizeA, int sizeB) {
 	int i;
 	//Allocate memory for LCS score matrix
 	mtype ** scoreMatrix = (mtype **) malloc((sizeB + 1) * sizeof(mtype *));
+
+	# pragma omp parallel for
 	for (i = 0; i < (sizeB + 1); i++)
 		scoreMatrix[i] = (mtype *) malloc((sizeA + 1) * sizeof(mtype));
+
 	return scoreMatrix;
 }
 
 void initScoreMatrix(mtype ** scoreMatrix, int sizeA, int sizeB) {
 	int i, j;
 	//Fill first line of LCS score matrix with zeroes
+	# pragma omp parallel for
 	for (j = 0; j < (sizeA + 1); j++)
 		scoreMatrix[0][j] = 0;
 
 	//Do the same for the first collumn
+	// Fill first column of LCS score matrix with zeroes
+	# pragma omp parallel for
 	for (i = 1; i < (sizeB + 1); i++)
 		scoreMatrix[i][0] = 0;
 }
+
+int LCS_antidiagonal(mtype **scoreMatrix, int sizeA, int sizeB, char *seqA, char *seqB) {
+    int i, j, d;
+
+    // starting at 2 to avoid the first row and column
+	// d is the diagonal index
+    for (d = 2; d <= sizeA + sizeB; d++) {
+        // i ranges from max(1, d - sizeA) to min(sizeB, d - 1)
+        int row_start = d - sizeA;
+		if (d - sizeA < 1) 
+			row_start = 1;
+
+		// j ranges from max(1, d - sizeB) to min(sizeA, d - 1)
+        int row_end = d - 1;
+		if (d - 1 > sizeB)
+			row_end = sizeB;
+
+		// Fill the diagonal
+        for (i = row_start; i <= row_end; i++) {
+			// if the column is out of bounds, skip
+            j = d - i;
+            if (j > sizeA) continue;
+
+			// match case
+            if (seqA[j - 1] == seqB[i - 1]) {
+                scoreMatrix[i][j] = scoreMatrix[i - 1][j - 1] + 1;
+			// mismatch case
+            } else {
+                scoreMatrix[i][j] = max(scoreMatrix[i - 1][j], scoreMatrix[i][j - 1]);
+            }
+        }
+    }
+
+    return scoreMatrix[sizeB][sizeA];
+}
+
+int pLCS_antidiagonal(mtype **scoreMatrix, int sizeA, int sizeB, char *seqA, char *seqB) {
+    int i, j, d;
+
+    // starting at 2 to avoid the first row and column
+	// d is the diagonal index
+    for (d = 2; d <= sizeA + sizeB; d++) {
+        // i ranges from max(1, d - sizeA) to min(sizeB, d - 1)
+        int row_start = d - sizeA;
+		if (d - sizeA < 1) 
+			row_start = 1;
+
+		// j ranges from max(1, d - sizeB) to min(sizeA, d - 1)
+        int row_end = d - 1;
+		if (d - 1 > sizeB)
+			row_end = sizeB;
+
+		// Fill the diagonal
+		#pragma omp parallel for private(i, j) shared(scoreMatrix, seqA, seqB)
+        for (i = row_start; i <= row_end; i++) {
+			// if the column is out of bounds, skip
+            j = d - i;
+            if (j > sizeA) continue;
+
+			// match case
+            if (seqA[j - 1] == seqB[i - 1]) {
+                scoreMatrix[i][j] = scoreMatrix[i - 1][j - 1] + 1;
+			// mismatch case
+            } else {
+                scoreMatrix[i][j] = max(scoreMatrix[i - 1][j], scoreMatrix[i][j - 1]);
+            }
+        }
+    }
+
+    return scoreMatrix[sizeB][sizeA];
+}
+
 
 int LCS(mtype ** scoreMatrix, int sizeA, int sizeB, char * seqA, char *seqB) {
 	int i, j;
@@ -95,6 +173,7 @@ int LCS(mtype ** scoreMatrix, int sizeA, int sizeB, char * seqA, char *seqB) {
 	}
 	return scoreMatrix[sizeB][sizeA];
 }
+
 void printMatrix(char * seqA, char * seqB, mtype ** scoreMatrix, int sizeA,
 		int sizeB) {
 	int i, j;
@@ -150,18 +229,29 @@ int main(int argc, char ** argv) {
 	int sizeA, sizeB;
 
 	//read both sequences
-    #pragma omp parallel
-    {
-        seqA = read_seq(argv[1]);
-        seqB = read_seq(argv[2]);
-    }
-
+    #pragma omp parallel sections num_threads(2)
+	{
+		#pragma omp section
+		{
+			seqA = read_seq(argv[1]);
+		}
+		#pragma omp section
+		{
+			seqB = read_seq(argv[2]);
+		}
+	}
 
 	//find out sizes
-    #pragma omp parallel
+    #pragma omp parallel sections num_threads(2)
     {
-	    sizeA = strlen(seqA);
-	    sizeB = strlen(seqB);
+		#pragma omp section
+		{
+	    	sizeA = strlen(seqA);
+		}
+		#pragma omp section
+		{
+	    	sizeB = strlen(seqB);
+		}
     }
 
 	//print sizes
@@ -175,7 +265,7 @@ int main(int argc, char ** argv) {
 	initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
 	//fill up the rest of the matrix and return final score (element locate at the last line and collumn)
-	mtype score = LCS(scoreMatrix, sizeA, sizeB, seqA, seqB);
+	mtype score = LCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
 
 	/* if you wish to see the entire score matrix,
 	 for debug purposes, define DEBUGMATRIX. */
