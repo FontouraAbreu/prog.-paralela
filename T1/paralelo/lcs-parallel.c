@@ -205,13 +205,13 @@ void printMatrix(char * seqA, char * seqB, mtype ** scoreMatrix, int sizeA,
 
 void freeScoreMatrix(mtype **scoreMatrix, int sizeB) {
 	int i;
+	#pragma omp parallel for
 	for (i = 0; i < (sizeB + 1); i++)
 		free(scoreMatrix[i]);
 	free(scoreMatrix);
 }
 
-clock_t start, end;
-double cpu_time_used;
+double start, end;
 
 int main(int argc, char ** argv) {
 	if (argc != 3) {
@@ -219,7 +219,7 @@ int main(int argc, char ** argv) {
 		exit(1);
 	}
 
-	start = clock(); // Start the timer
+	start = omp_get_wtime(); // Start the timer
 
 	// sequence pointers for both sequences
 
@@ -265,7 +265,7 @@ int main(int argc, char ** argv) {
 	initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
 	//fill up the rest of the matrix and return final score (element locate at the last line and collumn)
-	mtype score = LCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
+	mtype score = pLCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
 
 	/* if you wish to see the entire score matrix,
 	 for debug purposes, define DEBUGMATRIX. */
@@ -279,10 +279,9 @@ int main(int argc, char ** argv) {
 	//free score matrix
 	freeScoreMatrix(scoreMatrix, sizeB);
 
-	end = clock(); // End the timer
-	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+	end = omp_get_wtime(); // End the timer
 
-	printf("Time taken: %f seconds\n", cpu_time_used);
+	printf("Time taken: %.6f seconds\n", end - start);
 
 	return EXIT_SUCCESS;
 }
