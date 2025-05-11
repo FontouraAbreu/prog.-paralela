@@ -11,42 +11,51 @@
 
 typedef unsigned short mtype;
 
+char* read_seq(char *fname) {
+	//file pointer
+	FILE *fseq = NULL;
+	//sequence size
+	long size = 0;
+	//sequence pointer
+	char *seq = NULL;
+	//sequence index
+	int i = 0;
 
-char* read_seq(char *fname, int line) {
-    FILE *fseq = fopen(fname, "rt");
-    if (fseq == NULL) {
-        printf("Error reading file %s\n", fname);
-        exit(1);
-    }
+	//open file
+	fseq = fopen(fname, "rt");
+	if (fseq == NULL ) {
+		printf("Error reading file %s\n", fname);
+		exit(1);
+	}
 
-    char buffer[1024]; // temporary buffer for reading lines
-    int current_line = 0;
+	//find out sequence size to allocate memory afterwards
+	fseek(fseq, 0L, SEEK_END);
+	size = ftell(fseq);
+	rewind(fseq);
 
-    // Read lines until the desired one
-    while (fgets(buffer, sizeof(buffer), fseq)) {
-        if (current_line == line) {
-            size_t len = strcspn(buffer, "\n"); // remove newline if present
-            buffer[len] = '\0';
+	//allocate memory (sequence)
+	seq = (char *) calloc(size + 1, sizeof(char));
+	if (seq == NULL ) {
+		printf("Erro allocating memory for sequence %s.\n", fname);
+		exit(1);
+	}
 
-            char *seq = (char *)malloc((len + 1) * sizeof(char));
-            if (seq == NULL) {
-                printf("Error allocating memory.\n");
-                fclose(fseq);
-                exit(1);
-            }
+	//read sequence from file
+	while (!feof(fseq)) {
+		seq[i] = fgetc(fseq);
+		if ((seq[i] != '\n') && (seq[i] != EOF))
+			i++;
+	}
+	//insert string terminator
+	seq[i] = '\0';
 
-            strcpy(seq, buffer);
-            fclose(fseq);
-            return seq;
-        }
-        current_line++;
-    }
+	//close file
+	fclose(fseq);
 
-    // If the line wasn't found
-    printf("Line %d not found in file %s\n", line, fname);
-    fclose(fseq);
-    exit(1);
+	//return sequence pointer
+	return seq;
 }
+
 
 mtype ** allocateScoreMatrix(int sizeA, int sizeB) {
 	int i;
@@ -126,7 +135,7 @@ clock_t start, end;
 double cpu_time_used;
 
 int main(int argc, char ** argv) {
-	if (argc != 2) {
+	if (argc != 3) {
 		printf("Usage: %s <fileA> <fileB>\n", argv[0]);
 		exit(1);
 	}
@@ -143,8 +152,8 @@ int main(int argc, char ** argv) {
 	//read both sequences
     #pragma omp parallel
     {
-        seqA = read_seq(argv[1], 0);
-        seqB = read_seq(argv[1], 1);
+        seqA = read_seq(argv[1]);
+        seqB = read_seq(argv[2]);
     }
 
 
@@ -154,6 +163,10 @@ int main(int argc, char ** argv) {
 	    sizeA = strlen(seqA);
 	    sizeB = strlen(seqB);
     }
+
+	//print sizes
+	printf("Size A: %d\n", sizeA);
+	printf("Size B: %d\n", sizeB);
     
 	// allocate LCS score matrix
 	mtype ** scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
