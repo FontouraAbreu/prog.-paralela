@@ -1,4 +1,4 @@
-CFLAGS = -O3 -Wall -Wextra
+CFLAGS = -O3 -Wall -Wextra -march=native
 LFLAGS = -lm
 PFLAGS = -fopenmp
 CC = gcc
