@@ -87,13 +87,39 @@ O código foi compilado com as flags `-O3 -fopenmp -march=native`.
 O número de threads foi fixado em 2, 4, 8 e 16.
 Os testes foram realizados entre os tamanhos de 60.000 e 62.000 caracteres, com um incremento de 100 caracteres. Essa faixa foi escolhida para garantir um tempo mínimo de 10s e evitar o estouro de memória da máquina.
 
+Além disso, todos os testes foram executados com o computador no seguinte estado:
+
+- Apenas processos essenciais do sistema operacional sendo executados, inclusive o gerenciador de janelas e interface gráfica.
+- O computador não estava conectado à internet.
+- O computador foi impedido de entrar em modo de suspensão.
+- A função de Swap do armazenamento estava ativada.
+
 ## Desempenho
 
-### Tempo em trechos sequenciais
+Para medir a eficiência do código, utilizamos:
+
+- Comparações entre os tempos de execução do código sequencial e os tempos de execução do código paralelo para as entradas de teste.
+- comparações entre os tempos de execução do código paralelo para diferentes números de threads.
+- Comparações do speedup entre os tempos de execução do código sequencial e paralelos para diferentes entradas e números de threads.
+
+Esses dados foram coletados e organizados em tabelas e gráficos a seguir.
+
+### Identificando os trechos sequenciais
+
+Para identificar os trechos sequenciais do código, foram medidos os tempos de execução paralelos do código e descontados do tempo total. A média de 20 execuções com a entrada de 61.100 caracteres foi utilizada para essa medição.
+A partir dessas medições, 1% do código foi identificado como sequencial e 99% como paralelo.
 
 ### Speedup teórico usando a lei de Amdahl
 
-Speedup teórico usando a lei de Amdahl para 2,4,8 e N processdores:
+Speedup teórico usando a lei de Amdahl para 2,4,8 e N processdores e 1% de código sequencial:
+
+|  N  | Speedup |
+|-----|---------|
+|  2  |   1.98  |
+|  4  |   3.88  |
+|  8  |   7.48  |
+| 16  |  13.66  |
+| N   | 100.00  |
 
 ### Tabela de Speedup e eficiência reais
 
