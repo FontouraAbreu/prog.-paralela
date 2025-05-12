@@ -96,6 +96,34 @@ int LCS(mtype ** scoreMatrix, int sizeA, int sizeB, char * seqA, char *seqB) {
 	}
 	return scoreMatrix[sizeB][sizeA];
 }
+
+int LCS_2row(int sizeA, int sizeB, char *seqA, char *seqB) {
+    mtype *prev = calloc(sizeA + 1, sizeof(mtype));
+    mtype *curr = calloc(sizeA + 1, sizeof(mtype));
+
+    for (int i = 1; i <= sizeB; i++) {
+        for (int j = 1; j <= sizeA; j++) {
+			
+			// match case
+            if (seqA[j - 1] == seqB[i - 1])
+                curr[j] = prev[j - 1] + 1;
+			// mismatch case
+            else
+                curr[j] = max(prev[j], curr[j - 1]);
+        }
+
+        // Swap prev and curr
+        mtype *tmp = prev;
+        prev = curr;
+        curr = tmp;
+    }
+
+    int result = prev[sizeA];
+    free(prev);
+    free(curr);
+    return result;
+}
+
 void printMatrix(char * seqA, char * seqB, mtype ** scoreMatrix, int sizeA,
 		int sizeB) {
 	int i, j;
@@ -165,7 +193,8 @@ int main(int argc, char ** argv) {
 	initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
 	//fill up the rest of the matrix and return final score (element locate at the last line and collumn)
-	mtype score = LCS(scoreMatrix, sizeA, sizeB, seqA, seqB);
+	mtype score = LCS_2row(sizeA, sizeB, seqA, seqB);
+
 
 	/* if you wish to see the entire score matrix,
 	 for debug purposes, define DEBUGMATRIX. */
