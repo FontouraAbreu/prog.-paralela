@@ -1,6 +1,10 @@
 # Trabalho 1
 
+Paralelizar o algoritmo de busca da maior subsequência comum entre dois vetores (LCS) usando OpenMP.
+
 ## Estratégia de paralelização
+
+O algoritmo que encontra a maior subsequência comum (LCS) utilizando programação dinâmica é altamente dependente de dados, o que torna a paralelização mais desafiadora. Portanto, vamos alterara o método de ranking da matriz com o objetivo de reduzir a dependência entre os dados.
 
 ## Experimentos e Metodologia
 
