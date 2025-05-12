@@ -19,3 +19,9 @@ par: paralelo/lcs-parallel.c
 	$(CC) $(CFLAGS) $(PFLAGS) -o par paralelo/lcs-parallel.c $(LFLAGS)
 
 run: all
+
+
+test: all
+	@echo "Running tests..."
+	@mkdir -p $(OUTPUT_DIR)
+	./executa_testes.sh
