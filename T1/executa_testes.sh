@@ -5,7 +5,7 @@ SEQ_EXEC="./seq"
 PAR_EXEC="./par"
 OUTPUT="./output"
 REPEATS=20
-THREAD_STEPS=(2 4 6 8 10 12 14 16)
+THREAD_STEPS=(2 4 8 16)
 
 
 # Function to compute average and std deviation using awk
