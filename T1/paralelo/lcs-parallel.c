@@ -253,10 +253,6 @@ int main(int argc, char ** argv) {
 	    	sizeB = strlen(seqB);
 		}
     }
-
-	//print sizes
-	printf("Size A: %d\n", sizeA);
-	printf("Size B: %d\n", sizeB);
     
 	// allocate LCS score matrix
 	mtype ** scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
@@ -281,7 +277,7 @@ int main(int argc, char ** argv) {
 
 	end = omp_get_wtime(); // End the timer
 
-	printf("Time taken: %.6f seconds\n", end - start);
+	printf("Time: %.6f seconds\n", end - start);
 
 	return EXIT_SUCCESS;
 }

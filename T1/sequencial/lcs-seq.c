@@ -193,7 +193,7 @@ int main(int argc, char ** argv) {
 	initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
 	//fill up the rest of the matrix and return final score (element locate at the last line and collumn)
-	mtype score = LCS_2row(sizeA, sizeB, seqA, seqB);
+	mtype score = LCS(scoreMatrix, sizeA, sizeB, seqA, seqB);
 
 
 	/* if you wish to see the entire score matrix,
@@ -211,7 +211,7 @@ int main(int argc, char ** argv) {
 	end = clock(); // End the timer
 	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-	printf("Time taken: %f seconds\n", cpu_time_used);
+	printf("Time: %f seconds\n", cpu_time_used);
 
 	return EXIT_SUCCESS;
 }
