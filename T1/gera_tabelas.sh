@@ -48,7 +48,7 @@ generate_speedup_csv() {
 
 generate_time_csv() {
     OUTPUT_CSV="time.csv"
-    echo -n "Entry,sequential" > "$OUTPUT_CSV"
+    echo -n "Entry,sequential,sequential-dev" > "$OUTPUT_CSV"
     for exp in 1 2 3 4; do
         t=$((2 ** exp))
         echo -n ",$t-avg,$t-dev" >> "$OUTPUT_CSV"
@@ -64,7 +64,8 @@ generate_time_csv() {
         fi
 
         seq_time=$(grep "AVG Time" "$seqfile" | awk '{print $3}')
-        echo -n "$entry,$seq_time" >> "$OUTPUT_CSV"
+        seq_dev=$(grep "Deviation" "$seqfile" | awk '{print $2}')
+        echo -n "$entry,$seq_time,$seq_dev" >> "$OUTPUT_CSV"
 
         for exp in 1 2 3 4; do
             t=$((2 ** exp))
@@ -91,6 +92,7 @@ generate_time_csv() {
 
     echo "Time CSV generated: $OUTPUT_CSV"
 }
+
 
 # Choose based on mode
 generate_speedup_csv
