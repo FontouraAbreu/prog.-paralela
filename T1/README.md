@@ -85,7 +85,7 @@ A topologia da CPU é a seguinte:
 Os experimentos foram todos executados em uma mesma máquina, especificada abaixo.
 O código foi compilado com as flags `-O3 -fopenmp -march=native`.
 O número de threads foi fixado em 2, 4, 8 e 16.
-Os testes foram realizados entre os tamanhos de 60.000 e 62.000 caracteres, com um incremento de 100 caracteres. Essa faixa foi escolhida para garantir um tempo mínimo de 10s e evitar o estouro de memória da máquina.
+Os testes foram realizados entre os tamanhos de 60.000 e 110.000 caracteres, com um incremento de 100 caracteres. Essa faixa foi escolhida para garantir um tempo mínimo de 10s e evitar o estouro de memória da máquina.
 
 Além disso, todos os testes foram executados com o computador no seguinte estado:
 
@@ -106,7 +106,7 @@ Esses dados foram coletados e organizados em tabelas e gráficos a seguir.
 
 ### Identificando os trechos sequenciais
 
-Para identificar os trechos sequenciais do código, foram medidos os tempos de execução paralelos do código e descontados do tempo total. A média de 20 execuções com a entrada de 61.100 caracteres foi utilizada para essa medição.
+Para identificar os trechos sequenciais do código, foram medidos os tempos de execução paralelos do código e descontados do tempo total. A média de 20 execuções com a entrada de 70.00 caracteres foi utilizada para essa medição.
 A partir dessas medições, 1% do código foi identificado como sequencial e 99% como paralelo.
 
 ### Speedup teórico usando a lei de Amdahl
