@@ -4,9 +4,8 @@ TEST_DIR="./testes"
 SEQ_EXEC="./seq"
 PAR_EXEC="./par"
 OUTPUT="./output"
-REPEATS=20
+REPEATS=1
 THREAD_STEPS=(2 4 8 16)
-
 
 # Function to compute average and std deviation using awk
 compute_stats() {
@@ -23,6 +22,8 @@ compute_stats() {
     }'
 }
 
+# Ensure output directory exists
+mkdir -p "$OUTPUT"
 
 for fileA in "$TEST_DIR"/*_A.in; do
     base=$(basename "$fileA" _A.in)
@@ -33,26 +34,42 @@ for fileA in "$TEST_DIR"/*_A.in; do
         continue
     fi
 
-    echo "Running test: $base"
+    echo "Running strong scalability test: $base"
 
-    # Sequential
-    echo -n > "${OUTPUT}/sequential_result_${base}.txt"
-    for ((i = 0; i < REPEATS; i++)); do
-        { /usr/bin/time -f "%e" "$SEQ_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> tmp_seq_times.txt
-    done
-    compute_stats < tmp_seq_times.txt >> "${OUTPUT}/sequential_result_${base}.txt"
-    rm -f tmp_seq_times.txt
-
-    # Parallel
-    echo -n > "${OUTPUT}/parallel_result_${base}.txt"
+    # Clear temporary files
+    seq_tmp="${OUTPUT}/tmp_seq_times_${base}.txt"
+    rm -f "$seq_tmp"
+    declare -A par_tmp_files
     for threads in "${THREAD_STEPS[@]}"; do
-        export OMP_NUM_THREADS=$threads
-        echo "Threads: $threads" >> "${OUTPUT}/parallel_result_${base}.txt"
-        for ((i = 0; i < REPEATS; i++)); do
-            { /usr/bin/time -f "%e" "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> tmp_par_times.txt
-        done
-        compute_stats < tmp_par_times.txt >> "${OUTPUT}/parallel_result_${base}.txt"
-        echo "" >> "${OUTPUT}/parallel_result_${base}.txt"
-        rm -f tmp_par_times.txt
+        par_tmp_files[$threads]="${OUTPUT}/tmp_par_times_${base}_${threads}.txt"
+        rm -f "${par_tmp_files[$threads]}"
     done
+
+    for ((i = 0; i < REPEATS; i++)); do
+        # Sequential run
+        { /usr/bin/time -f "%e" "$SEQ_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$seq_tmp"
+
+        # Parallel runs for all thread counts
+        for threads in "${THREAD_STEPS[@]}"; do
+            export OMP_NUM_THREADS=$threads
+            { /usr/bin/time -f "%e" "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "${par_tmp_files[$threads]}"
+        done
+    done
+
+    # Output sequential results
+    seq_out="${OUTPUT}/sequential_result_${base}.txt"
+    compute_stats < "$seq_tmp" > "$seq_out"
+    rm -f "$seq_tmp"
+
+    # Output parallel results
+    par_out="${OUTPUT}/parallel_result_${base}.txt"
+    echo -n > "$par_out"
+    for threads in "${THREAD_STEPS[@]}"; do
+        echo "Threads: $threads" >> "$par_out"
+        compute_stats < "${par_tmp_files[$threads]}" >> "$par_out"
+        echo "" >> "$par_out"
+        rm -f "${par_tmp_files[$threads]}"
+    done
+
 done
+

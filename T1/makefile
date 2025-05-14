@@ -3,9 +3,7 @@ LFLAGS = -lm
 PFLAGS = -fopenmp
 CC = gcc
 
-# tests variables
-TESTS_DIR = testes
-THREADS = 2
+# variables
 OUTPUT_DIR = output
 
 all: seq par

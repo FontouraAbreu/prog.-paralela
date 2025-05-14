@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# Check arguments
-if [[ -z "$1" ]]; then
-    echo "Usage: $0 [spd|time]"
-    exit 1
-fi
-
 RESULTS_DIR="./output"
 MODE="$2"
 
@@ -99,11 +93,6 @@ generate_time_csv() {
 }
 
 # Choose based on mode
-if [[ "$MODE" == "spd" ]]; then
-    generate_speedup_csv
-elif [[ "$MODE" == "time" ]]; then
-    generate_time_csv
-else
-    generate_speedup_csv
-    generate_time_csv
-fi
+generate_speedup_csv
+generate_time_csv
+

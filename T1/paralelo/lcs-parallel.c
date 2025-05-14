@@ -274,6 +274,8 @@ int main(int argc, char ** argv) {
 
 	//free score matrix
 	freeScoreMatrix(scoreMatrix, sizeB);
+	free(seqA);
+	free(seqB);
 
 	end = omp_get_wtime(); // End the timer
 

@@ -207,6 +207,8 @@ int main(int argc, char ** argv) {
 
 	//free score matrix
 	freeScoreMatrix(scoreMatrix, sizeB);
+	free(seqA);
+	free(seqB);
 
 	end = clock(); // End the timer
 	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
