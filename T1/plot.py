@@ -29,8 +29,8 @@ def plot_time(csv_path):
     df = pd.read_csv(csv_path)
     df.set_index("Entry", inplace=True)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(df.index, df["sequential"], marker="o", label="Sequencial", linewidth=2)
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(df.index, df["sequential"], marker="o", label="Sequencial", linewidth=2)
 
     for threads in [2, 4, 8, 16]:
         avg_col = f"{threads}-avg"
@@ -46,33 +46,36 @@ def plot_time(csv_path):
     print("Arquivo gerado: grafico_tempo.png")
 
 
-def plot_strong_scalability(csv_path):
+def plot_weak_scalability(csv_path):
     df = pd.read_csv(csv_path)
 
-    # Converte 'Entry' para numérico e seleciona a maior entrada
-    df["Entry"] = pd.to_numeric(df["Entry"])
-    last_entry = df["Entry"].max()
-    row = df[df["Entry"] == last_entry].iloc[0]
+    # Filtrar a linha com entrada de 80000
+    entry_target = 80000
+    row = df[df["Entry"] == entry_target]
 
-    threads = [col for col in df.columns if col != "Entry"]
-    speedups = [row[t] for t in threads]
+    if row.empty:
+        print(f"Nenhum dado encontrado para Entry = {entry_target}")
+        return
 
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(threads, speedups, color="skyblue")
+    threads = [2, 4, 8, 16]
+    tempos = [
+        row["2-avg"].values[0],
+        row["4-avg"].values[0],
+        row["8-avg"].values[0],
+        row["16-avg"].values[0],
+    ]
 
-    # Linha vermelha em y = 1.0
-    plt.axhline(
-        y=1.0, color="red", linestyle="--", linewidth=1.5, label="Speedup = 1.0"
-    )
-
-    plt.title(f"Speedup Real para Entrada {last_entry}")
+    # Plot de linhas
+    plt.figure(figsize=(8, 6))
+    plt.plot(threads, tempos, marker="o", linestyle="-", color="brown", linewidth=2)
+    plt.title(f"Tempo de Execução para Entrada {entry_target}")
     plt.xlabel("Número de Threads")
-    plt.ylabel("Speedup")
-    plt.legend()
-    plt.grid(axis="y")
+    plt.ylabel("Tempo (s)")
+    plt.xticks(threads)
+    plt.grid(True, axis="y")
     plt.tight_layout()
-    plt.savefig("grafico_escalabilidade_forte_barras.png")
-    print("Arquivo gerado: grafico_escalabilidade_forte_barras.png")
+    plt.savefig("grafico_escalabilidade_fraca_tempo.png")
+    print("Arquivo gerado: grafico_escalabilidade_fraca_tempo.png")
 
 
 if __name__ == "__main__":
@@ -86,7 +89,9 @@ if __name__ == "__main__":
     elif mode == "time":
         plot_time("time.csv")
     elif mode == "strong":
-        plot_strong_scalability("strong-scalability/speedup.csv")
+        plot_strong_scalability("strong-scalability/time.csv")
+    elif mode == "weak":
+        plot_weak_scalability("weak-scalability/time.csv")
     elif mode == "both":
         plot_speedup("speedup.csv")
         plot_time("time.csv")
