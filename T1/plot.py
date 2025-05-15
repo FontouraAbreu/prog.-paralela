@@ -32,7 +32,7 @@ def plot_time(csv_path):
     # plt.figure(figsize=(10, 6))
     # plt.plot(df.index, df["sequential"], marker="o", label="Sequencial", linewidth=2)
 
-    for threads in [2, 4, 8, 16]:
+    for threads in [2, 4, 8]:
         avg_col = f"{threads}-avg"
         plt.plot(df.index, df[avg_col], marker="o", label=f"{threads} threads")
 
@@ -49,33 +49,35 @@ def plot_time(csv_path):
 def plot_weak_scalability(csv_path):
     df = pd.read_csv(csv_path)
 
-    # Filtrar a linha com entrada de 80000
-    entry_target = 80000
-    row = df[df["Entry"] == entry_target]
+    # Converte colunas numéricas
+    for col in df.columns:
+        if col != "Entry":
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    if row.empty:
-        print(f"Nenhum dado encontrado para Entry = {entry_target}")
-        return
+    entries = df["Entry"].astype(float)
+    threads = [2, 4, 8]
 
-    threads = [2, 4, 8, 16]
-    tempos = [
-        row["2-avg"].values[0],
-        row["4-avg"].values[0],
-        row["8-avg"].values[0],
-        row["16-avg"].values[0],
-    ]
-
-    # Plot de linhas
     plt.figure(figsize=(8, 6))
-    plt.plot(threads, tempos, marker="o", linestyle="-", color="brown", linewidth=2)
-    plt.title(f"Tempo de Execução para Entrada {entry_target}")
+
+    for i, row in df.iterrows():
+        tempos = [row[f"{t}-avg"] for t in threads]
+        plt.plot(
+            threads,
+            tempos,
+            marker="o",
+            linestyle="-",
+            label=f"Entrada {int(row['Entry'])}",
+        )
+
+    plt.title("Escalabilidade Fraca - Tempo vs Número de Threads")
     plt.xlabel("Número de Threads")
-    plt.ylabel("Tempo (s)")
+    plt.ylabel("Tempo de Execução (s)")
     plt.xticks(threads)
-    plt.grid(True, axis="y")
+    plt.grid(True)
+    plt.legend(title="Tamanho da Entrada", loc="upper right")
     plt.tight_layout()
-    plt.savefig("grafico_escalabilidade_fraca_tempo.png")
-    print("Arquivo gerado: grafico_escalabilidade_fraca_tempo.png")
+    plt.savefig("grafico_escalabilidade_fraca_linhas_threads.png")
+    print("Arquivo gerado: grafico_escalabilidade_fraca_linhas_threads.png")
 
 
 if __name__ == "__main__":
@@ -91,7 +93,7 @@ if __name__ == "__main__":
     elif mode == "strong":
         plot_strong_scalability("strong-scalability/time.csv")
     elif mode == "weak":
-        plot_weak_scalability("weak-scalability/time.csv")
+        plot_weak_scalability("time.csv")
     elif mode == "both":
         plot_speedup("speedup.csv")
         plot_time("time.csv")

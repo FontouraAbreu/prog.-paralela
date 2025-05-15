@@ -4,7 +4,7 @@ PFLAGS = -fopenmp
 CC = gcc
 
 # variables
-OUTPUT_DIR = output
+OUTPUT_DIR = weak-scalability
 
 all: seq par
 
