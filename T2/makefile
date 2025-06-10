@@ -1,24 +1,30 @@
-CFLAGS = -O3 -Wall -Wextra -march=native
-LFLAGS = -lm
-PFLAGS = -fopenmp
-CC = gcc
+# Flags e compiladores
+CFLAGS  = -O3 -Wall -Wextra -march=native
+LFLAGS  = -lm
+PFLAGS  = -fopenmp
+CC      = gcc
+MPICC   = mpicc
 
-# variables
+# Diretórios e nomes
 OUTPUT_DIR = weak-scalability
 
-all: seq par
+# Alvos padrão
+all: seq par mpi
 
+# Compila versão sequencial
 seq: sequencial/lcs-seq.c 
 	@echo "Compiling sequential version..."
 	$(CC) $(CFLAGS) -o seq sequencial/lcs-seq.c $(LFLAGS)
 
+# Compila versão MPI com antidiagonais
 par: paralelo/lcs-parallel.c
-	@echo "Compiling parallel version..."
-	$(CC) $(CFLAGS) $(PFLAGS) -o par paralelo/lcs-parallel.c $(LFLAGS)
+	@echo "Compiling MPI antidiagonal version..."
+	$(MPICC) $(CFLAGS) -o par paralelo/lcs-parallel.c $(LFLAGS)
 
+# Alvo de execução (gera todos)
 run: all
 
-
+# Alvo de teste
 test: all
 	@echo "Running tests..."
 	@mkdir -p $(OUTPUT_DIR)
