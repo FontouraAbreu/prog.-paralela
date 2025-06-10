@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <omp.h>
+#include <mpi.h>
 
 #ifndef max
 #define max(a, b) (((a) > (b)) ? (a) : (b))
@@ -11,154 +9,135 @@
 
 typedef unsigned short mtype;
 
-char* read_seq(char *fname) {
-	FILE *fseq = fopen(fname, "rt");
-	if (!fseq) {
-		printf("Error reading file %s\n", fname);
-		exit(1);
-	}
 
-	fseek(fseq, 0L, SEEK_END);
-	long size = ftell(fseq);
-	rewind(fseq);
+char *read_seq(const char *fname)
+{
+    FILE *fp = fopen(fname, "rt");
+    if (!fp) { fprintf(stderr, "Erro abrindo %s\n", fname); MPI_Abort(MPI_COMM_WORLD, 1); }
 
-	char *seq = (char *) calloc(size + 1, sizeof(char));
-	if (!seq) {
-		printf("Error allocating memory for sequence %s.\n", fname);
-		exit(1);
-	}
+    fseek(fp, 0L, SEEK_END);
+    long fsize = ftell(fp);
+    rewind(fp);
 
-	int i = 0;
-	while (!feof(fseq)) {
-		seq[i] = fgetc(fseq);
-		if ((seq[i] != '\n') && (seq[i] != EOF))
-			i++;
-	}
-	seq[i] = '\0';
-	fclose(fseq);
-	return seq;
+    char *seq = (char *)calloc(fsize + 1, sizeof(char));
+    if (!seq) { fprintf(stderr, "Falha na malloc do arquivo\n"); MPI_Abort(MPI_COMM_WORLD, 1); }
+
+    long len = 0;
+    int c;
+    while ((c = fgetc(fp)) != EOF) {
+        if (c != '\n' && c != '\r') seq[len++] = (char)c;
+    }
+    seq[len] = '\0';
+    fclose(fp);
+    return seq;
 }
 
-mtype* allocateScoreMatrix(int sizeA, int sizeB) {
-	return (mtype *) calloc((sizeA + 1) * (sizeB + 1), sizeof(mtype));
+
+mtype *allocateScoreMatrix(int sizeA, int sizeB)
+{
+	mtype * matrix = (mtype *)calloc((sizeA + 1) * (sizeB + 1), sizeof(mtype));
+
+    return matrix;
 }
 
-void initScoreMatrix(mtype *scoreMatrix, int sizeA, int sizeB) {
-	int i;
-	#pragma omp parallel for
-	for (i = 0; i <= sizeA; i++)
-		scoreMatrix[i] = 0;
+void initScoreMatrix(mtype *M, int sizeA, int sizeB)
+{
+	// primeira linha
+    for (int j = 0; j <= sizeA; ++j)
+        M[j] = 0;
 
-	#pragma omp parallel for
-	for (i = 1; i <= sizeB; i++)
-		scoreMatrix[i * (sizeA + 1)] = 0;
+    // primeira coluna
+    for (int i = 1; i <= sizeB; ++i)
+        M[i * (sizeA + 1)] = 0;
 }
 
-int pLCS_antidiagonal(mtype *scoreMatrix, int sizeA, int sizeB, char *seqA, char *seqB) {
-	int i, j, d;
+int LCS_MPI_antidiagonal(mtype *score_matrix,
+                     int sizeA, int sizeB,
+                     const char *seqA, const char *seqB,
+                     int rank, int nproc)
+{
+    /* buffers auxiliares para Allgatherv (tamanho ≤ max(sizeA, sizeB)) */
+    int max_k = sizeA + sizeB + 1;
+    mtype *diag_recv = (mtype *)malloc(max_k * sizeof(mtype));
+    
+   
 
-	for (d = 2; d <= sizeA + sizeB; d++) {
-		int row_start = (d - sizeA < 1) ? 1 : d - sizeA;
-		int row_end = (d - 1 > sizeB) ? sizeB : d - 1;
+    free(diag_recv);
 
-		#pragma omp parallel for private(i, j) shared(scoreMatrix, seqA, seqB)
-		for (i = row_start; i <= row_end; i++) {
-			j = d - i;
-			if (j > sizeA) continue;
-
-			int idx = i * (sizeA + 1) + j;
-			int up = (i - 1) * (sizeA + 1) + j;
-			int left = i * (sizeA + 1) + (j - 1);
-			int diag = (i - 1) * (sizeA + 1) + (j - 1);
-
-			if (seqA[j - 1] == seqB[i - 1]) {
-				scoreMatrix[idx] = scoreMatrix[diag] + 1;
-			} else {
-				scoreMatrix[idx] = max(scoreMatrix[up], scoreMatrix[left]);
-			}
-		}
-	}
-
-	return scoreMatrix[sizeB * (sizeA + 1) + sizeA];
+    /* elemento final (sizeB, sizeA) */
+    return score_matrix[sizeB * (sizeA + 1) + sizeA];
 }
 
-void printMatrix(char *seqA, char *seqB, mtype *scoreMatrix, int sizeA, int sizeB) {
-	int i, j;
 
-	printf("Score Matrix:\n");
-	printf("========================================\n");
-	printf("    %5c   ", ' ');
+int main(int argc, char **argv)
+{
+    int rank, nproc;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 
-	for (j = 0; j < sizeA; j++)
-		printf("%5c   ", seqA[j]);
-	printf("\n");
+    if (argc != 3) {
+        if (rank == 0) 
+			fprintf(stderr, "Uso: %s <seqA.txt> <seqB.txt>\n", argv[0]);
+        MPI_Finalize();
+        return 1;
+    }
 
-	for (i = 0; i <= sizeB; i++) {
-		if (i == 0)
-			printf("    ");
-		else
-			printf("%c   ", seqB[i - 1]);
+    char *seqA = NULL, *seqB = NULL;
+    int sizeA = 0, sizeB = 0;
+	
+	// Rank 0 faz as leituras
+    if (rank == 0) {
+        seqA = read_seq(argv[1]);
+        seqB = read_seq(argv[2]);
+        sizeA = strlen(seqA);
+        sizeB = strlen(seqB);
+    }
 
-		for (j = 0; j <= sizeA; j++) {
-			printf("%5d   ", scoreMatrix[i * (sizeA + 1) + j]);
-		}
-		printf("\n");
+    // broadcast do tamanho das sequências
+    MPI_Bcast(&sizeA, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&sizeB, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // alocação das sequências em cada rank
+    if (rank != 0) {
+        seqA = (char *)malloc(sizeA + 1);
+        seqB = (char *)malloc(sizeB + 1);
+    }
+	if (!seqA || !seqB) {
+		fprintf(stderr, "Falha na alocacao das sequencias\n");
+		MPI_Abort(MPI_COMM_WORLD, 1);
 	}
-	printf("========================================\n");
-}
+	
+	// broadcast das sequências
+    MPI_Bcast(seqA, sizeA + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
+    MPI_Bcast(seqB, sizeB + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
 
-void freeScoreMatrix(mtype *scoreMatrix) {
-	free(scoreMatrix);
-}
 
-double start, end;
+	/*---------------------------------------------------------------------*/
+	// espera todos os ranks receberem os dados anteriores				   //
+	/*---------------------------------------------------------------------*/
+    MPI_Barrier(MPI_COMM_WORLD);
+    double time_start = MPI_Wtime();
 
-int main(int argc, char **argv) {
-	if (argc != 3) {
-		printf("Usage: %s <fileA> <fileB>\n", argv[0]);
-		exit(1);
-	}
+    mtype *score_matrix = allocateScoreMatrix(sizeA, sizeB);
+    initScoreMatrix(score_matrix, sizeA, sizeB);
 
-	start = omp_get_wtime();
+    // cada rank calcula sua parte da matriz
+    int score = LCS_MPI_antidiagonal(score_matrix, sizeA, sizeB, seqA, seqB, rank, nproc);
 
-	char *seqA, *seqB;
-	int sizeA, sizeB;
+    double time_end = MPI_Wtime();
 
-	#pragma omp parallel sections num_threads(2)
-	{
-		#pragma omp section
-		seqA = read_seq(argv[1]);
+    // rank 0 mostra o resultado
+    if (rank == 0) {
+        printf("Score: %d\n", score);
+        printf("Time (%.0f×%.0f, %d proc): %.6f s\n",
+               (double)sizeA, (double)sizeB, nproc, time_end - time_start);
+    }
 
-		#pragma omp section
-		seqB = read_seq(argv[2]);
-	}
+    free(score_matrix);
+    free(seqA);
+    free(seqB);
 
-	#pragma omp parallel sections num_threads(2)
-	{
-		#pragma omp section
-		sizeA = strlen(seqA);
-
-		#pragma omp section
-		sizeB = strlen(seqB);
-	}
-
-	mtype *scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
-	initScoreMatrix(scoreMatrix, sizeA, sizeB);
-
-	mtype score = pLCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
-
-#ifdef DEBUGMATRIX
-	printMatrix(seqA, seqB, scoreMatrix, sizeA, sizeB);
-#endif
-
-	printf("\nScore: %d\n", score);
-
-	freeScoreMatrix(scoreMatrix);
-	free(seqA);
-	free(seqB);
-
-	end = omp_get_wtime();
-	printf("Time: %.6f seconds\n", end - start);
-
-	return EXIT_SUCCESS;
+    MPI_Finalize();
+    return 0;
 }
