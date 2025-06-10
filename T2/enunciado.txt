@@ -1,0 +1,37 @@
+1. Recorte o kernel (parte principal) do algoritmo sequencial e explique em
+suas palavras o funcionamento do trecho.
+
+2. Explique qual a estratégia final (vitoriosa) de paralelização você utilizou.
+
+3. Descreva a metodologia que você adotou para os experimentos a seguir.
+Responda também se você desligou o overclock dinâmico (turbo mode), se
+definiu o modo desempenho, se isolou os núcleos de desempenho, etc. Não
+esqueça de descrever também a versão do SO, kernel, compilador, flags de
+compilação, modelo de processador, número de execuções, etc.
+
+4. Com base na execução sequencial, meça e apresente a porcentagem de
+tempo que o algoritmo demora em trechos não passiveis de paralelização
+(região puramente sequencial).
+
+5. Aplicando a Lei de Amdahl, crie uma tabela com o speedup máximo teórico
+variando o número de processadores (ex. 2, 4, 8, ... ,infinitos
+processadores). Não esqueça de explicar a metodologia para obter o tempo
+paralelizável e puramente sequencial.
+
+6. Apresente tabelas de speedup e eficiência. Para isso varie o número de
+threads/processos (ex. 1, 2, 4 e 8). Varie também o tamanho das entradas.
+Ajuste a quantidade de threads/processos de acordo com o processador que
+você estiver utilizando. Pense no número de threads/processos que faça
+sentido.
+
+7. Analise os resultados e discuta cada uma das duas tabelas (speedup e
+eficiência). Você pode comparar os resultados com speedup linear ou a
+estimativa da Lei de Amdahl para enriquecer a discussão.
+
+8. Seu algoritmo apresentou escalabilidade forte, fraca ou não foi escalável?
+Apresente argumentos coerentes e sólidos para suportar sua afirmação.
+
+9. Pense sobre cada um dos resultados. Eles estão coerentes? Estão como
+esperados? Eu sei explicar o desempenho do Simultaneous Multi-threading?
+O que o desvio padrão está nos mostrando? A análise dos resultados exige
+atenção aos detalhes e conhecimento.
