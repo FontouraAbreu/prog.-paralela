@@ -1,5 +1,5 @@
 # Flags e compiladores
-CFLAGS  = -O3 -Wall -Wextra -march=native
+CFLAGS  = -O3 -Wall -Wextra -march=native -ftree-vectorize
 LFLAGS  = -lm
 PFLAGS  = -fopenmp
 CC      = gcc
