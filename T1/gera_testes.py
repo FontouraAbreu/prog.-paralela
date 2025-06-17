@@ -42,7 +42,8 @@ def main():
     for i in range(args.num_testes):
         test_size = args.base_string_size + (i * args.step)
         string_a = random_string(test_size)
-        string_b = random_string(test_size)
+        string_b_size = int(test_size / 3)
+        string_b = random_string(string_b_size)
 
         path_a = f"{args.diretorio}/{test_size}_A.in"
         path_b = f"{args.diretorio}/{test_size}_B.in"
@@ -53,7 +54,7 @@ def main():
 
         with open(path_b, "w") as f:
             f.write(f"{string_b}\n")
-            print(f"Teste {i + 1} B ({test_size} chars) gerado com sucesso!")
+            print(f"Teste {i + 1} B ({string_b_size} chars) gerado com sucesso!")
 
     print("Todos os testes foram gerados com sucesso!")
     return 0
