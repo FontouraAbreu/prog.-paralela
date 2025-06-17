@@ -1,2 +1,0 @@
-AVG Time: 0.007250 seconds
-Deviation: 0.008058

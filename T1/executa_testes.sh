@@ -3,14 +3,15 @@
 TEST_DIR="./testes"
 SEQ_EXEC="./seq"
 PAR_EXEC="./par"
-OUTPUT="./weak-scalability"
-REPEATS=10
+OUTPUT="./output"
+REPEATS=4
 
-# Entry sizes for weak scalability: one per thread count
-ENTRY_SIZES=(20000 40000 80000 160000)
 THREAD_STEPS=(2 4 8 16)
+# ENTRY_SIZES=(20000 30000 40000 50000 60000 70000 80000 90000 100000 110000 120000 130000 140000 150000 160000)
+ENTRY_SIZES=(100000 110000 120000 130000 140000 150000 160000)
 
-# Function to compute average and std deviation using awk
+
+# Função para calcular média e desvio padrão
 compute_stats() {
     awk '
     {
@@ -25,14 +26,9 @@ compute_stats() {
     }'
 }
 
-# Ensure output directory exists
 mkdir -p "$OUTPUT"
 
-# Loop through each thread step and corresponding entry size
-for i in "${!THREAD_STEPS[@]}"; do
-    threads=${THREAD_STEPS[$i]}
-    entry_size=${ENTRY_SIZES[$i]}
-
+for entry_size in "${ENTRY_SIZES[@]}"; do
     fileA="${TEST_DIR}/${entry_size}_A.in"
     fileB="${TEST_DIR}/${entry_size}_B.in"
 
@@ -41,23 +37,49 @@ for i in "${!THREAD_STEPS[@]}"; do
         continue
     fi
 
-    echo "Running weak scalability test for $threads threads with entry size $entry_size..."
+    echo "Running tests for entry size: $entry_size"
 
-    tmp_file="${OUTPUT}/tmp_weak_${threads}.txt"
-    rm -f "$tmp_file"
+    # Arquivos temporários
+    tmp_seq="${OUTPUT}/tmp_${entry_size}_seq.txt"
+    declare -A tmp_par
+    for threads in "${THREAD_STEPS[@]}"; do
+        tmp_par[$threads]="${OUTPUT}/tmp_${entry_size}_${threads}.txt"
+        rm -f "${tmp_par[$threads]}"
+    done
+    rm -f "$tmp_seq"
 
-    for ((j = 0; j < REPEATS; j++)); do
-        if [[ $threads -eq 1 ]]; then
-            { /usr/bin/time -f "%e" "$SEQ_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$tmp_file"
-        else
+    # LOOP intercalando execuções
+    for ((repeat = 0; repeat < REPEATS; repeat++)); do
+        # Sequencial
+        { /usr/bin/time -f "%e" "$SEQ_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$tmp_seq"
+
+        # Paralelos
+        for threads in "${THREAD_STEPS[@]}"; do
             export OMP_NUM_THREADS=$threads
-            { /usr/bin/time -f "%e" "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$tmp_file"
-        fi
+            { /usr/bin/time -f "%e" "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "${tmp_par[$threads]}"
+        done
     done
 
-    # Output result
-    result_file="${OUTPUT}/weak_result_${threads}_threads.txt"
-    compute_stats < "$tmp_file" > "$result_file"
-    echo "Results saved to $result_file"
-    rm -f "$tmp_file"
+    # Saída Sequencial
+    seq_output="${OUTPUT}/seq_result_${entry_size}.txt"
+    echo -n > "$seq_output"
+    echo "Execution: Sequential" >> "$seq_output"
+    compute_stats < "$tmp_seq" >> "$seq_output"
+
+    # Saída Paralela
+    par_output="${OUTPUT}/par_result_${entry_size}.txt"
+    echo -n > "$par_output"
+    for threads in "${THREAD_STEPS[@]}"; do
+        echo "Threads: $threads" >> "$par_output"
+        compute_stats < "${tmp_par[$threads]}" >> "$par_output"
+        echo "" >> "$par_output"
+    done
+
+    echo "Results saved to $seq_output and $par_output"
+
+    # Limpa temporários
+    rm -f "$tmp_seq"
+    for threads in "${THREAD_STEPS[@]}"; do
+        rm -f "${tmp_par[$threads]}"
+    done
 done

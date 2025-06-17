@@ -12,274 +12,149 @@
 typedef unsigned short mtype;
 
 char* read_seq(char *fname) {
-	//file pointer
-	FILE *fseq = NULL;
-	//sequence size
-	long size = 0;
-	//sequence pointer
-	char *seq = NULL;
-	//sequence index
-	int i = 0;
+    FILE *fseq = fopen(fname, "rt");
+    if (fseq == NULL ) {
+        printf("Error reading file %s\n", fname);
+        exit(1);
+    }
 
-	//open file
-	fseq = fopen(fname, "rt");
-	if (fseq == NULL ) {
-		printf("Error reading file %s\n", fname);
-		exit(1);
-	}
+    fseek(fseq, 0L, SEEK_END);
+    long size = ftell(fseq);
+    rewind(fseq);
 
-	//find out sequence size to allocate memory afterwards
-	fseek(fseq, 0L, SEEK_END);
-	size = ftell(fseq);
-	rewind(fseq);
+    char *seq = (char *) calloc(size + 1, sizeof(char));
+    if (seq == NULL ) {
+        printf("Error allocating memory for sequence %s.\n", fname);
+        exit(1);
+    }
 
-	//allocate memory (sequence)
-	seq = (char *) calloc(size + 1, sizeof(char));
-	if (seq == NULL ) {
-		printf("Erro allocating memory for sequence %s.\n", fname);
-		exit(1);
-	}
-
-	//read sequence from file
-	while (!feof(fseq)) {
-		seq[i] = fgetc(fseq);
-		if ((seq[i] != '\n') && (seq[i] != EOF))
-			i++;
-	}
-	//insert string terminator
-	seq[i] = '\0';
-
-	//close file
-	fclose(fseq);
-
-	//return sequence pointer
-	return seq;
+    long i = 0;
+    while (!feof(fseq)) {
+        seq[i] = fgetc(fseq);
+        if (seq[i] != '\n' && seq[i] != EOF)
+            i++;
+    }
+    seq[i] = '\0';
+    fclose(fseq);
+    return seq;
 }
 
-
-mtype ** allocateScoreMatrix(int sizeA, int sizeB) {
-	int i;
-	//Allocate memory for LCS score matrix
-	mtype ** scoreMatrix = (mtype **) malloc((sizeB + 1) * sizeof(mtype *));
-
-	# pragma omp parallel for
-	for (i = 0; i < (sizeB + 1); i++)
-		scoreMatrix[i] = (mtype *) malloc((sizeA + 1) * sizeof(mtype));
-
-	return scoreMatrix;
+mtype* allocateScoreMatrix(long sizeA, long sizeB) {
+    mtype *scoreMatrix = (mtype*) calloc((sizeA + 1) * (sizeB + 1), sizeof(mtype));
+    if (scoreMatrix == NULL) {
+        printf("Error allocating score matrix\n");
+        printf("Memory needed: %ld bytes\n", (long)((sizeA + 1) * (sizeB + 1) * sizeof(mtype)));
+        exit(1);
+    }
+    return scoreMatrix;
 }
 
-void initScoreMatrix(mtype ** scoreMatrix, int sizeA, int sizeB) {
-	int i, j;
-	//Fill first line of LCS score matrix with zeroes
-	# pragma omp parallel for
-	for (j = 0; j < (sizeA + 1); j++)
-		scoreMatrix[0][j] = 0;
+void initScoreMatrix(mtype *scoreMatrix, long sizeA, long sizeB) {
+    #pragma omp parallel for
+    for (long j = 0; j <= sizeA; j++)
+        scoreMatrix[j] = 0;
 
-	//Do the same for the first collumn
-	// Fill first column of LCS score matrix with zeroes
-	# pragma omp parallel for
-	for (i = 1; i < (sizeB + 1); i++)
-		scoreMatrix[i][0] = 0;
+    #pragma omp parallel for
+    for (long i = 0; i <= sizeB; i++)
+        scoreMatrix[i * (sizeA + 1)] = 0;
 }
 
-int LCS_antidiagonal(mtype **scoreMatrix, int sizeA, int sizeB, char *seqA, char *seqB) {
-    int i, j, d;
+mtype pLCS_antidiagonal(mtype *scoreMatrix, long sizeA, long sizeB, char *seqA, char *seqB) {
+    long i, j, d;
 
-    // starting at 2 to avoid the first row and column
-	// d is the diagonal index
     for (d = 2; d <= sizeA + sizeB; d++) {
-        // i ranges from max(1, d - sizeA) to min(sizeB, d - 1)
-        int row_start = d - sizeA;
-		if (d - sizeA < 1) 
-			row_start = 1;
+        long row_start = d - sizeA;
+        if (row_start < 1) row_start = 1;
 
-		// j ranges from max(1, d - sizeB) to min(sizeA, d - 1)
-        int row_end = d - 1;
-		if (d - 1 > sizeB)
-			row_end = sizeB;
+        long row_end = d - 1;
+        if (row_end > sizeB) row_end = sizeB;
 
-		// Fill the diagonal
+        #pragma omp parallel for private(i, j)
         for (i = row_start; i <= row_end; i++) {
-			// if the column is out of bounds, skip
             j = d - i;
             if (j > sizeA) continue;
 
-			// match case
+            long idx = i * (sizeA + 1) + j;
+            long idx_left = i * (sizeA + 1) + (j - 1);
+            long idx_up = (i - 1) * (sizeA + 1) + j;
+            long idx_diag = (i - 1) * (sizeA + 1) + (j - 1);
+
             if (seqA[j - 1] == seqB[i - 1]) {
-                scoreMatrix[i][j] = scoreMatrix[i - 1][j - 1] + 1;
-			// mismatch case
+                scoreMatrix[idx] = scoreMatrix[idx_diag] + 1;
             } else {
-                scoreMatrix[i][j] = max(scoreMatrix[i - 1][j], scoreMatrix[i][j - 1]);
+                scoreMatrix[idx] = max(scoreMatrix[idx_up], scoreMatrix[idx_left]);
             }
         }
     }
 
-    return scoreMatrix[sizeB][sizeA];
+    return scoreMatrix[sizeB * (sizeA + 1) + sizeA];
 }
 
-int pLCS_antidiagonal(mtype **scoreMatrix, int sizeA, int sizeB, char *seqA, char *seqB) {
-    int i, j, d;
+void freeScoreMatrix(mtype *scoreMatrix) {
+    free(scoreMatrix);
+}
 
-    // starting at 2 to avoid the first row and column
-	// d is the diagonal index
-    for (d = 2; d <= sizeA + sizeB; d++) {
-        // i ranges from max(1, d - sizeA) to min(sizeB, d - 1)
-        int row_start = d - sizeA;
-		if (d - sizeA < 1) 
-			row_start = 1;
+void printMatrix(char *seqA, char *seqB, mtype *scoreMatrix, long sizeA, long sizeB) {
+    printf("Score Matrix:\n");
+    printf("    ");
+    for (long j = 0; j < sizeA; j++)
+        printf("%5c ", seqA[j]);
+    printf("\n");
 
-		// j ranges from max(1, d - sizeB) to min(sizeA, d - 1)
-        int row_end = d - 1;
-		if (d - 1 > sizeB)
-			row_end = sizeB;
+    for (long i = 0; i <= sizeB; i++) {
+        if (i == 0)
+            printf("  ");
+        else
+            printf("%c ", seqB[i - 1]);
 
-		// Fill the diagonal
-		#pragma omp parallel for private(i, j) shared(scoreMatrix, seqA, seqB)
-        for (i = row_start; i <= row_end; i++) {
-			// if the column is out of bounds, skip
-            j = d - i;
-            if (j > sizeA) continue;
-
-			// match case
-            if (seqA[j - 1] == seqB[i - 1]) {
-                scoreMatrix[i][j] = scoreMatrix[i - 1][j - 1] + 1;
-			// mismatch case
-            } else {
-                scoreMatrix[i][j] = max(scoreMatrix[i - 1][j], scoreMatrix[i][j - 1]);
-            }
+        for (long j = 0; j <= sizeA; j++) {
+            printf("%5d ", scoreMatrix[i * (sizeA + 1) + j]);
         }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+int main(int argc, char **argv) {
+    if (argc != 3) {
+        printf("Usage: %s <fileA> <fileB>\n", argv[0]);
+        exit(1);
     }
 
-    return scoreMatrix[sizeB][sizeA];
-}
+    double start = omp_get_wtime();
 
+    char *seqA, *seqB;
+    long sizeA, sizeB;
 
-int LCS(mtype ** scoreMatrix, int sizeA, int sizeB, char * seqA, char *seqB) {
-	int i, j;
-	for (i = 1; i < sizeB + 1; i++) {
-		for (j = 1; j < sizeA + 1; j++) {
-			if (seqA[j - 1] == seqB[i - 1]) {
-				/* if elements in both sequences match,
-				 the corresponding score will be the score from
-				 previous elements + 1*/
-				scoreMatrix[i][j] = scoreMatrix[i - 1][j - 1] + 1;
-			} else {
-				/* else, pick the maximum value (score) from left and upper elements*/
-				scoreMatrix[i][j] =
-						max(scoreMatrix[i-1][j], scoreMatrix[i][j-1]);
-			}
-		}
-	}
-	return scoreMatrix[sizeB][sizeA];
-}
-
-void printMatrix(char * seqA, char * seqB, mtype ** scoreMatrix, int sizeA,
-		int sizeB) {
-	int i, j;
-
-	//print header
-	printf("Score Matrix:\n");
-	printf("========================================\n");
-
-	//print LCS score matrix allong with sequences
-
-	printf("    ");
-	printf("%5c   ", ' ');
-
-	for (j = 0; j < sizeA; j++)
-		printf("%5c   ", seqA[j]);
-	printf("\n");
-	for (i = 0; i < sizeB + 1; i++) {
-		if (i == 0)
-			printf("    ");
-		else
-			printf("%c   ", seqB[i - 1]);
-		for (j = 0; j < sizeA + 1; j++) {
-			printf("%5d   ", scoreMatrix[i][j]);
-		}
-		printf("\n");
-	}
-	printf("========================================\n");
-}
-
-void freeScoreMatrix(mtype **scoreMatrix, int sizeB) {
-	int i;
-	#pragma omp parallel for
-	for (i = 0; i < (sizeB + 1); i++)
-		free(scoreMatrix[i]);
-	free(scoreMatrix);
-}
-
-double start, end;
-
-int main(int argc, char ** argv) {
-	if (argc != 3) {
-		printf("Usage: %s <fileA> <fileB>\n", argv[0]);
-		exit(1);
-	}
-
-	start = omp_get_wtime(); // Start the timer
-
-	// sequence pointers for both sequences
-
-	char *seqA, *seqB;
-
-	// sizes of both sequences
-	int sizeA, sizeB;
-
-	//read both sequences
-    #pragma omp parallel sections num_threads(2)
-	{
-		#pragma omp section
-		{
-			seqA = read_seq(argv[1]);
-		}
-		#pragma omp section
-		{
-			seqB = read_seq(argv[2]);
-		}
-	}
-
-	//find out sizes
     #pragma omp parallel sections num_threads(2)
     {
-		#pragma omp section
-		{
-	    	sizeA = strlen(seqA);
-		}
-		#pragma omp section
-		{
-	    	sizeB = strlen(seqB);
-		}
+        #pragma omp section
+        { seqA = read_seq(argv[1]); }
+
+        #pragma omp section
+        { seqB = read_seq(argv[2]); }
     }
-    
-	// allocate LCS score matrix
-	mtype ** scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
 
-	//initialize LCS score matrix
-	initScoreMatrix(scoreMatrix, sizeA, sizeB);
+    sizeA = strlen(seqA);
+    sizeB = strlen(seqB);
 
-	//fill up the rest of the matrix and return final score (element locate at the last line and collumn)
-	mtype score = pLCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
+    mtype *scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
+    initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
-	/* if you wish to see the entire score matrix,
-	 for debug purposes, define DEBUGMATRIX. */
+    mtype score = pLCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
+
 #ifdef DEBUGMATRIX
-	printMatrix(seqA, seqB, scoreMatrix, sizeA, sizeB);
+    printMatrix(seqA, seqB, scoreMatrix, sizeA, sizeB);
 #endif
 
-	//print score
-	printf("\nScore: %d\n", score);
+    printf("\nScore: %d\n", score);
 
-	//free score matrix
-	freeScoreMatrix(scoreMatrix, sizeB);
-	free(seqA);
-	free(seqB);
+    freeScoreMatrix(scoreMatrix);
+    free(seqA);
+    free(seqB);
 
-	end = omp_get_wtime(); // End the timer
+    double end = omp_get_wtime();
+    printf("Time: %.6f seconds\n", end - start);
 
-	printf("Time: %.6f seconds\n", end - start);
-
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
