@@ -9,6 +9,13 @@
 
 typedef unsigned short mtype;
 
+// Direções de backtracking
+#define DIR_NONE 0
+#define DIR_DIAG 1
+#define DIR_UP   2
+#define DIR_LEFT 3
+
+// #define DEBUG
 
 char* read_seq(const char *fname) {
     FILE *fp = fopen(fname, "rt");
@@ -27,68 +34,6 @@ char* read_seq(const char *fname) {
     return seq;
 }
 
-int build_alphabet(char *seqB, int sizeB, char **alphabet_out) {
-    int ascii[256] = {0};
-    int count = 0;
-    for (int i = 0; i < sizeB; i++) {
-        unsigned char c = seqB[i];
-        if (!ascii[c]) {
-            ascii[c] = 1;
-            count++;
-        }
-    }
-    *alphabet_out = (char*) malloc(count);
-    int pos = 0;
-    for (int c = 0; c < 256; c++) {
-        if (ascii[c]) (*alphabet_out)[pos++] = (char)c;
-    }
-    return count;
-}
-
-int char_to_index(char c, char *alphabet, int alphabet_size) {
-    for (int i = 0; i < alphabet_size; i++) {
-        if (alphabet[i] == c) return i;
-    }
-    return -1;
-}
-
-void build_P_table(char *B, int sizeB, int *P, int alphabet_size, char *alphabet) {
-    for (int c = 0; c < alphabet_size; c++) {
-        P[c * (sizeB + 1) + 0] = 0;
-        for (int j = 1; j <= sizeB; j++) {
-            if (B[j - 1] == alphabet[c])
-                P[c * (sizeB + 1) + j] = j;
-            else
-                P[c * (sizeB + 1) + j] = P[c * (sizeB + 1) + (j - 1)];
-        }
-    }
-}
-
-
-void calculate_row_autovec(
-    mtype * restrict curr_row,
-    const mtype * restrict prev_row,
-    const char * restrict seqB,
-    int sizeB,
-    char char_A,
-    const int * restrict P_row)
-{
-    // by using restrict, the compiler will try to optimize memory access
-    for (int j = 1; j <= sizeB; j++) {
-        //  match
-        const int is_match = (seqB[j - 1] == char_A);
-        const mtype val_match = prev_row[j - 1] + 1;
-
-        // mismatch
-        const int pj = P_row[j];
-        const mtype val_gathered = (pj > 0) ? prev_row[pj - 1] + 1 : 1;
-        const mtype val_mismatch = max(prev_row[j], val_gathered);
-
-        // calculate the current cell value using algebraic expression in order to enable vectorization
-        curr_row[j] = (is_match * val_match) + ((1 - is_match) * val_mismatch);
-    }
-}
-
 int main(int argc, char **argv) {
     int rank, nproc;
     MPI_Init(&argc, &argv);
@@ -101,138 +46,154 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // time variables
     double total_start = MPI_Wtime();
     double comm_time = 0.0;
     double calc_time = 0.0;
 
-    // sequence and P table variables
     char *seqA = NULL, *seqB = NULL;
     int sizeA = 0, sizeB = 0;
-    char *alphabet = NULL;
-    int alphabet_size = 0;
 
-    double t1 = MPI_Wtime();
-
-    // Rank 0 reads the sequences and builds the alphabet
     if (rank == 0) {
         seqA = read_seq(argv[1]);
         seqB = read_seq(argv[2]);
         sizeA = strlen(seqA);
         sizeB = strlen(seqB);
-        alphabet_size = build_alphabet(seqB, sizeB, &alphabet);
-    }    
-    // Broadcast the sizes and alphabet to all ranks
+    }
+
     MPI_Bcast(&sizeA, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&sizeB, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&alphabet_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    // Allocate memory for sequences and alphabet on all ranks
     if (rank != 0) {
         seqA = (char*) malloc(sizeA + 1);
         seqB = (char*) malloc(sizeB + 1);
-        alphabet = (char*) malloc(alphabet_size);
     }
-    // Broadcast the sequences and alphabet
     MPI_Bcast(seqA, sizeA + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
     MPI_Bcast(seqB, sizeB + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
-    MPI_Bcast(alphabet, alphabet_size, MPI_CHAR, 0, MPI_COMM_WORLD);
 
-    // Build the P table on rank 0 and broadcast it to all ranks
-    int *P = (int*) calloc(alphabet_size * (sizeB + 1), sizeof(int));
-    if (rank == 0)
-        build_P_table(seqB, sizeB, P, alphabet_size, alphabet);
-
-    // Broadcast the P table to all ranks*
-    for (int c = 0; c < alphabet_size; c++)
-        MPI_Bcast(&P[c * (sizeB + 1)], sizeB + 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    // Timing the broadcast
-    double t2 = MPI_Wtime();
-    comm_time += (t2 - t1);
-
-    // Calculate the number of rows each process will handle
     int rows_per_proc = sizeA / nproc;
     int extra = sizeA % nproc;
     int my_start = rank * rows_per_proc + (rank < extra ? rank : extra) + 1;
     int my_rows = rows_per_proc + (rank < extra ? 1 : 0);
 
-    // Allocate memory for the current and previous rows
-    mtype *buffer[2];
-    buffer[0] = (mtype*) calloc(sizeB + 1, sizeof(mtype));
-    buffer[1] = (mtype*) calloc(sizeB + 1, sizeof(mtype));
-    
-    
-    mtype *curr_row, *prev_row;
-    int buf_idx = 0;
+    mtype *prev_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
+    mtype *curr_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
 
-    MPI_Request req_recv, req_send;
+    unsigned char **directions = (unsigned char**) malloc(my_rows * sizeof(unsigned char*));
+    for (int i = 0; i < my_rows; i++)
+        directions[i] = (unsigned char*) malloc((sizeB + 1) * sizeof(unsigned char));
+
+    MPI_Request req_send, req_recv;
     MPI_Status status;
 
-    // Initialize the first row (base case)
     if (my_start != 1) {
         double t1_comm = MPI_Wtime();
-
-        // Receive the first row from the previous rank
-        MPI_Irecv(buffer[buf_idx], sizeB + 1, MPI_UNSIGNED_SHORT, rank - 1, 0, MPI_COMM_WORLD, &req_recv);
-        MPI_Wait(&req_recv, &status);
-
+        MPI_Recv(prev_row, sizeB + 1, MPI_UNSIGNED_SHORT, rank - 1, 0, MPI_COMM_WORLD, &status);
         double t2_comm = MPI_Wtime();
         comm_time += (t2_comm - t1_comm);
     }
 
-
-    // each rank processes its assigned rows
-    for (int i = my_start; i < my_start + my_rows; i++) {
-        prev_row = buffer[buf_idx];
-        curr_row = buffer[1 - buf_idx];
-
-        double t1_calc = MPI_Wtime();
-
-        char char_A = seqA[i-1];
-        int c_idx = char_to_index(char_A, alphabet, alphabet_size);
-
-        // If the character is in the alphabet, calculate the current row
-        if (c_idx >= 0) {
-            const int* P_row = &P[c_idx * (sizeB + 1)];
-            calculate_row_autovec(curr_row, prev_row, seqB, sizeB, char_A, P_row);
-        } else { // If the character is not in the alphabet, copy the previous row
-             for (int j = 1; j <= sizeB; j++) {
+    double t1_calc = MPI_Wtime();
+    for (int i = 0; i < my_rows; i++) {
+        int global_i = my_start + i;
+        for (int j = 1; j <= sizeB; j++) {
+            if (seqA[global_i - 1] == seqB[j - 1]) {
+                curr_row[j] = prev_row[j - 1] + 1;
+                directions[i][j] = DIR_DIAG;
+            } else if (prev_row[j] >= curr_row[j - 1]) {
                 curr_row[j] = prev_row[j];
-             }
+                directions[i][j] = DIR_UP;
+            } else {
+                curr_row[j] = curr_row[j - 1];
+                directions[i][j] = DIR_LEFT;
+            }
         }
-
-        double t2_calc = MPI_Wtime();
-        calc_time += (t2_calc - t1_calc);
-
-        if (i == my_start + my_rows - 1 && rank != nproc - 1) {
-            double t1_send = MPI_Wtime();
-            MPI_Isend(curr_row, sizeB + 1, MPI_UNSIGNED_SHORT, rank + 1, 0, MPI_COMM_WORLD, &req_send);
-            MPI_Wait(&req_send, &status);
-            double t2_send = MPI_Wtime();
-            comm_time += (t2_send - t1_send);
-        }
-
-        buf_idx = 1 - buf_idx;
+        memcpy(prev_row, curr_row, (sizeB + 1) * sizeof(mtype));
     }
+    double t2_calc = MPI_Wtime();
+    calc_time += (t2_calc - t1_calc);
+
+    if (rank != nproc - 1) {
+        double t1_comm = MPI_Wtime();
+        MPI_Send(prev_row, sizeB + 1, MPI_UNSIGNED_SHORT, rank + 1, 0, MPI_COMM_WORLD);
+        double t2_comm = MPI_Wtime();
+        comm_time += (t2_comm - t1_comm);
+    }
+
+    // Reunir a matriz de direções no último processo
+    unsigned char *full_directions = NULL;
+    int *recvcounts = NULL, *displs = NULL;
+    if (rank == nproc - 1) {
+        full_directions = (unsigned char*) malloc(sizeA * (sizeB + 1) * sizeof(unsigned char));
+        recvcounts = (int*) malloc(nproc * sizeof(int));
+        displs = (int*) malloc(nproc * sizeof(int));
+
+        for (int p = 0; p < nproc; p++) {
+            int rows = (sizeA / nproc) + (p < extra ? 1 : 0);
+            recvcounts[p] = rows * (sizeB + 1);
+            displs[p] = (p == 0) ? 0 : displs[p - 1] + recvcounts[p - 1];
+        }
+    }
+
+    // Preparar buffer local para envio
+    unsigned char *local_dirs_flat = (unsigned char*) malloc(my_rows * (sizeB + 1) * sizeof(unsigned char));
+    for (int i = 0; i < my_rows; i++)
+        memcpy(&local_dirs_flat[i * (sizeB + 1)], directions[i], (sizeB + 1) * sizeof(unsigned char));
+
+    MPI_Gatherv(
+        local_dirs_flat, my_rows * (sizeB + 1), MPI_UNSIGNED_CHAR,
+        full_directions, recvcounts, displs, MPI_UNSIGNED_CHAR,
+        nproc - 1, MPI_COMM_WORLD
+    );
 
     double total_end = MPI_Wtime();
     double total_time = total_end - total_start;
 
-    // If this is the last rank, print the result
     if (rank == nproc - 1) {
-        printf("score: %d\n", buffer[1 - buf_idx][sizeB]);
+        printf("score: %d\n", prev_row[sizeB]);
         printf("TotalTime: %.6f\n", total_time);
         printf("CommTime: %.6f\n", comm_time);
         printf("CalcTime: %.6f\n", calc_time);
+
+
+        #ifdef DEBUG
+            // Reconstruir a LCS
+            int i = sizeA;
+            int j = sizeB;
+            char *lcs = (char*) malloc((prev_row[sizeB] + 1) * sizeof(char));
+            int lcs_index = prev_row[sizeB];
+
+            lcs[lcs_index] = '\0';
+            while (i > 0 && j > 0) {
+                unsigned char dir = full_directions[(i - 1) * (sizeB + 1) + j];
+                if (dir == DIR_DIAG) {
+                    lcs[--lcs_index] = seqA[i - 1];
+                    i--;
+                    j--;
+                } else if (dir == DIR_UP) {
+                    i--;
+                } else if (dir == DIR_LEFT) {
+                    j--;
+                } else {
+                    break;
+                }
+            }
+            printf("LCS: %s\n", lcs);
+            free(lcs);
+        #endif
+        
+        free(full_directions);
+        free(recvcounts);
+        free(displs);
     }
 
-    free(buffer[0]);
-    free(buffer[1]);
-    free(P);
+    free(local_dirs_flat);
+    for (int i = 0; i < my_rows; i++)
+        free(directions[i]);
+    free(directions);
+    free(prev_row);
+    free(curr_row);
     free(seqA);
     free(seqB);
-    free(alphabet);
 
     MPI_Finalize();
     return 0;
