@@ -6,7 +6,6 @@ PAR_EXEC="./par"
 OUTPUT="./output"
 REPEATS=2
 
-THREAD_STEPS=(2 4 8 16)
 ENTRY_SIZES=(20000 30000 40000 50000 60000 70000 80000 90000 100000 110000 120000 130000 140000 150000 160000)
 
 # Função para calcular média e desvio padrão
@@ -26,6 +25,8 @@ compute_stats() {
 
 mkdir -p "$OUTPUT"
 
+threads=${THREAD_STEPS[0]}  # Valor exportado por cada slurm_Xtasks.sh
+
 for entry_size in "${ENTRY_SIZES[@]}"; do
     fileA="${TEST_DIR}/${entry_size}_A.in"
     fileB="${TEST_DIR}/${entry_size}_B.in"
@@ -35,27 +36,19 @@ for entry_size in "${ENTRY_SIZES[@]}"; do
         continue
     fi
 
-    echo "Running tests for entry size: $entry_size"
+    echo "Running tests for entry size: $entry_size with $threads MPI processes"
 
     tmp_seq="${OUTPUT}/tmp_${entry_size}_seq.txt"
-    declare -A tmp_par
-    for threads in "${THREAD_STEPS[@]}"; do
-        tmp_par[$threads]="${OUTPUT}/tmp_${entry_size}_${threads}.txt"
-        rm -f "${tmp_par[$threads]}"
-    done
-    rm -f "$tmp_seq"
+    tmp_par="${OUTPUT}/tmp_${entry_size}_${threads}.txt"
+    rm -f "$tmp_seq" "$tmp_par"
 
     for ((repeat = 0; repeat < REPEATS; repeat++)); do
         # Sequencial
         { /usr/bin/time -f "%e" "$SEQ_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$tmp_seq"
 
-        # Paralelos (MPI via SLURM srun)
-        for threads in "${THREAD_STEPS[@]}"; do
-            # Dinamically limit memory (example heuristic: 10MB per 10k input chars per process)
-            mem_per_cpu=$(( (entry_size / 10000 + 1) * 10 ))
-
-            { /usr/bin/time -f "%e" srun --ntasks=$threads --mem-per-cpu=${mem_per_cpu}M --nodes=1 "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "${tmp_par[$threads]}"
-        done
+        # Paralelo (MPI via SLURM srun com número fixo de tasks)
+        mem_per_cpu=$(( (entry_size / 10000 + 1) * 10 ))
+        { /usr/bin/time -f "%e" srun --ntasks=$threads --mem-per-cpu=${mem_per_cpu}M --nodes=1 "$PAR_EXEC" "$fileA" "$fileB" > /dev/null; } 2>> "$tmp_par"
     done
 
     # Sequencial Results
@@ -63,19 +56,12 @@ for entry_size in "${ENTRY_SIZES[@]}"; do
     echo "Execution: Sequential" > "$seq_output"
     compute_stats < "$tmp_seq" >> "$seq_output"
 
-    # Paralelos Results
-    par_output="${OUTPUT}/par_result_${entry_size}.txt"
-    echo -n > "$par_output"
-    for threads in "${THREAD_STEPS[@]}"; do
-        echo "Processes: $threads" >> "$par_output"
-        compute_stats < "${tmp_par[$threads]}" >> "$par_output"
-        echo "" >> "$par_output"
-    done
+    # Paralelo Results
+    par_output="${OUTPUT}/par_result_${entry_size}_${threads}.txt"
+    echo "Processes: $threads" > "$par_output"
+    compute_stats < "$tmp_par" >> "$par_output"
 
     echo "Results saved to $seq_output and $par_output"
 
-    rm -f "$tmp_seq"
-    for threads in "${THREAD_STEPS[@]}"; do
-        rm -f "${tmp_par[$threads]}"
-    done
+    rm -f "$tmp_seq" "$tmp_par"
 done
