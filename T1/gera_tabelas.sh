@@ -12,9 +12,9 @@ generate_speedup_csv() {
     done
     echo "" >> "$OUTPUT_CSV"
 
-    for seqfile in "$RESULTS_DIR"/sequential_result_*.txt; do
-        entry=$(basename "$seqfile" | sed 's/sequential_result_//' | sed 's/.txt//')
-        parfile="$RESULTS_DIR/parallel_result_${entry}.txt"
+    for seqfile in "$RESULTS_DIR"/seq_result_*.txt; do
+        entry=$(basename "$seqfile" | sed 's/seq_result_//' | sed 's/.txt//')
+        parfile="$RESULTS_DIR/par_result_${entry}.txt"
         if [[ ! -f "$parfile" ]]; then
             echo "Missing parallel result for $entry"
             continue
@@ -55,9 +55,9 @@ generate_time_csv() {
     done
     echo "" >> "$OUTPUT_CSV"
 
-    for seqfile in "$RESULTS_DIR"/sequential_result_*.txt; do
-        entry=$(basename "$seqfile" | sed 's/sequential_result_//' | sed 's/.txt//')
-        parfile="$RESULTS_DIR/parallel_result_${entry}.txt"
+    for seqfile in "$RESULTS_DIR"/seq_result_*.txt; do
+        entry=$(basename "$seqfile" | sed 's/seq_result_//' | sed 's/.txt//')
+        parfile="$RESULTS_DIR/par_result_${entry}.txt"
         if [[ ! -f "$parfile" ]]; then
             echo "Missing parallel result for $entry"
             continue

@@ -29,20 +29,41 @@ def plot_time(csv_path):
     df = pd.read_csv(csv_path)
     df.set_index("Entry", inplace=True)
 
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(df.index, df["sequential"], marker="o", label="Sequencial", linewidth=2)
+    plt.figure(figsize=(12, 7))
 
-    for threads in [2, 4, 8]:
+    # Plot sequencial
+    plt.plot(
+        df.index,
+        df["sequential"],
+        marker="o",
+        linestyle="--",
+        color="black",
+        label="Sequencial",
+        linewidth=2,
+    )
+
+    # Plot versões paralelas
+    colors = ["blue", "green", "orange", "red"]
+    for idx, threads in enumerate([2, 4, 8, 16]):
         avg_col = f"{threads}-avg"
-        plt.plot(df.index, df[avg_col], marker="o", label=f"{threads} threads")
+        if avg_col in df.columns:
+            plt.plot(
+                df.index,
+                df[avg_col],
+                marker="o",
+                color=colors[idx],
+                label=f"{threads} threads",
+                linewidth=2,
+            )
 
-    plt.title("Tempo de Execução vs Tamanho da Entrada")
-    plt.xlabel("Tamanho da Entrada")
-    plt.ylabel("Tempo (s)")
-    plt.legend()
-    plt.grid(True)
+    plt.title("Tempo de Execução vs Tamanho da Entrada", fontsize=16)
+    plt.xlabel("Tamanho da Entrada", fontsize=14)
+    plt.ylabel("Tempo (s)", fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle="--", alpha=0.7)
     plt.tight_layout()
-    plt.savefig("grafico_tempo.png")
+
+    plt.savefig("grafico_tempo.png", dpi=300)
     print("Arquivo gerado: grafico_tempo.png")
 
 
