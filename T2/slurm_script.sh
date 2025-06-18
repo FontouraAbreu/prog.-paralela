@@ -1,8 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=lcs_fontoura
-#SBATCH --output=lcs_test_%j.out
-#SBATCH --nodes=1
-#SBATCH --ntasks=16
-#SBATCH --time=1:00:00
+echo "Submitting 2 tasks job..."
+sbatch slurm_2.sh
 
-bash ./executa_testes.sh
+echo "Submitting 4 tasks job..."
+sbatch slurm_4.sh
+
+echo "Submitting 8 tasks job..."
+sbatch slurm_8.sh
+
+echo "Submitting 16 tasks job..."
+sbatch slurm_16.sh
