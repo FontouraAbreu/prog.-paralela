@@ -3,7 +3,6 @@
 TEST_DIR="./testes"
 SEQ_EXEC="./seq"
 PAR_EXEC="./par"
-OUTPUT="./output"
 REPEATS=2
 
 ENTRY_SIZES=(20000 30000 40000 50000 60000 70000 80000 90000 100000 110000 120000 130000 140000 150000 160000)
@@ -23,9 +22,11 @@ compute_stats() {
     }'
 }
 
-mkdir -p "$OUTPUT"
-
 threads=${THREAD_STEPS[0]}  # Valor exportado por cada slurm_Xtasks.sh
+
+# Definindo diretório de saída específico por configuração de processos
+OUTPUT="./output/${threads}_tasks"
+mkdir -p "$OUTPUT"
 
 for entry_size in "${ENTRY_SIZES[@]}"; do
     fileA="${TEST_DIR}/${entry_size}_A.in"
