@@ -1,0 +1,20 @@
+Threads: 2
+Size: 20000
+AVG Time: 5.815000 seconds
+Deviation: 0.185540
+
+Threads: 4
+Size: 40000
+AVG Time: 23.117500 seconds
+Deviation: 0.437286
+
+Threads: 8
+Size: 80000
+AVG Time: 112.275000 seconds
+Deviation: 0.526617
+
+Threads: 16
+Size: 160000
+AVG Time: 21.776250 seconds
+Deviation: 57.569192
+

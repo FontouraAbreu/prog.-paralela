@@ -1,3 +1,3 @@
 Execution: Sequential
-AVG Time: 8.723000 seconds
-Deviation: 0.006403
+AVG Time: 0.010000 seconds
+Deviation: 0.012247

@@ -6,14 +6,14 @@
 #include <omp.h>
 
 #ifndef max
-#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 typedef unsigned short mtype;
 
-char* read_seq(char *fname) {
+char* read_seq(const char *fname) {
     FILE *fseq = fopen(fname, "rt");
-    if (fseq == NULL ) {
+    if (fseq == NULL) {
         printf("Error reading file %s\n", fname);
         exit(1);
     }
@@ -23,7 +23,7 @@ char* read_seq(char *fname) {
     rewind(fseq);
 
     char *seq = (char *) calloc(size + 1, sizeof(char));
-    if (seq == NULL ) {
+    if (seq == NULL) {
         printf("Error allocating memory for sequence %s.\n", fname);
         exit(1);
     }
@@ -50,13 +50,10 @@ mtype* allocateScoreMatrix(long sizeA, long sizeB) {
 }
 
 void initScoreMatrix(mtype *scoreMatrix, long sizeA, long sizeB) {
-    #pragma omp parallel for
-    for (long j = 0; j <= sizeA; j++)
-        scoreMatrix[j] = 0;
-
-    #pragma omp parallel for
+    #pragma omp parallel for collapse(2)
     for (long i = 0; i <= sizeB; i++)
-        scoreMatrix[i * (sizeA + 1)] = 0;
+        for (long j = 0; j <= sizeA; j++)
+            scoreMatrix[i * (sizeA + 1) + j] = 0;
 }
 
 mtype pLCS_antidiagonal(mtype *scoreMatrix, long sizeA, long sizeB, char *seqA, char *seqB) {
@@ -121,40 +118,34 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    double start = omp_get_wtime();
+    double start_total = omp_get_wtime();
 
-    char *seqA, *seqB;
-    long sizeA, sizeB;
+    char *seqA = read_seq(argv[1]);
+    char *seqB = read_seq(argv[2]);
 
-    #pragma omp parallel sections num_threads(2)
-    {
-        #pragma omp section
-        { seqA = read_seq(argv[1]); }
-
-        #pragma omp section
-        { seqB = read_seq(argv[2]); }
-    }
-
-    sizeA = strlen(seqA);
-    sizeB = strlen(seqB);
+    long sizeA = strlen(seqA);
+    long sizeB = strlen(seqB);
 
     mtype *scoreMatrix = allocateScoreMatrix(sizeA, sizeB);
     initScoreMatrix(scoreMatrix, sizeA, sizeB);
 
+    double start_calc = omp_get_wtime();
     mtype score = pLCS_antidiagonal(scoreMatrix, sizeA, sizeB, seqA, seqB);
+    double end_calc = omp_get_wtime();
 
 #ifdef DEBUGMATRIX
     printMatrix(seqA, seqB, scoreMatrix, sizeA, sizeB);
 #endif
 
     printf("\nScore: %d\n", score);
+    printf("Calculation Time: %.6f seconds\n", end_calc - start_calc);
 
     freeScoreMatrix(scoreMatrix);
     free(seqA);
     free(seqB);
 
-    double end = omp_get_wtime();
-    printf("Time: %.6f seconds\n", end - start);
+    double end_total = omp_get_wtime();
+    printf("Total Time (including IO and init): %.6f seconds\n", end_total - start_total);
 
     return EXIT_SUCCESS;
 }
