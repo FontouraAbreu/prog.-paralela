@@ -9,13 +9,9 @@
 
 typedef unsigned short mtype;
 
-// Direções de backtracking
-#define DIR_NONE 0
-#define DIR_DIAG 1
-#define DIR_UP   2
-#define DIR_LEFT 3
+// Controle de debug
+#define DEBUG_MODE 0
 
-// #define DEBUG
 
 char* read_seq(const char *fname) {
     FILE *fp = fopen(fname, "rt");
@@ -51,7 +47,7 @@ int main(int argc, char **argv) {
     double calc_time = 0.0;
 
     char *seqA = NULL, *seqB = NULL;
-    int sizeA = 0, sizeB = 0;
+    long sizeA = 0, sizeB = 0;
 
     if (rank == 0) {
         seqA = read_seq(argv[1]);
@@ -60,8 +56,8 @@ int main(int argc, char **argv) {
         sizeB = strlen(seqB);
     }
 
-    MPI_Bcast(&sizeA, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&sizeB, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&sizeA, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&sizeB, 1, MPI_LONG, 0, MPI_COMM_WORLD);
 
     if (rank != 0) {
         seqA = (char*) malloc(sizeA + 1);
@@ -75,12 +71,14 @@ int main(int argc, char **argv) {
     int my_start = rank * rows_per_proc + (rank < extra ? rank : extra) + 1;
     int my_rows = rows_per_proc + (rank < extra ? 1 : 0);
 
-    mtype *prev_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
-    mtype *curr_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
+#if DEBUG_MODE
+    mtype **local_matrix = (mtype**) malloc(my_rows * sizeof(mtype*));
+    for (int i = 0; i < my_rows; i++) {
+        local_matrix[i] = (mtype*) calloc(sizeB + 1, sizeof(mtype));
+    }
+#endif
 
-    unsigned char **directions = (unsigned char**) malloc(my_rows * sizeof(unsigned char*));
-    for (int i = 0; i < my_rows; i++)
-        directions[i] = (unsigned char*) malloc((sizeB + 1) * sizeof(unsigned char));
+    mtype *prev_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
 
     MPI_Request req_send, req_recv;
     MPI_Status status;
@@ -95,19 +93,25 @@ int main(int argc, char **argv) {
     double t1_calc = MPI_Wtime();
     for (int i = 0; i < my_rows; i++) {
         int global_i = my_start + i;
+
+#if DEBUG_MODE
+        mtype *curr_row = local_matrix[i];
+#else
+        mtype *curr_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
+#endif
+
         for (int j = 1; j <= sizeB; j++) {
             if (seqA[global_i - 1] == seqB[j - 1]) {
                 curr_row[j] = prev_row[j - 1] + 1;
-                directions[i][j] = DIR_DIAG;
-            } else if (prev_row[j] >= curr_row[j - 1]) {
-                curr_row[j] = prev_row[j];
-                directions[i][j] = DIR_UP;
             } else {
-                curr_row[j] = curr_row[j - 1];
-                directions[i][j] = DIR_LEFT;
+                curr_row[j] = max(prev_row[j], curr_row[j - 1]);
             }
         }
         memcpy(prev_row, curr_row, (sizeB + 1) * sizeof(mtype));
+
+#if !DEBUG_MODE
+        free(curr_row);
+#endif
     }
     double t2_calc = MPI_Wtime();
     calc_time += (t2_calc - t1_calc);
@@ -119,31 +123,13 @@ int main(int argc, char **argv) {
         comm_time += (t2_comm - t1_comm);
     }
 
-    // Reunir a matriz de direções no último processo
-    unsigned char *full_directions = NULL;
-    int *recvcounts = NULL, *displs = NULL;
-    if (rank == nproc - 1) {
-        full_directions = (unsigned char*) malloc(sizeA * (sizeB + 1) * sizeof(unsigned char));
-        recvcounts = (int*) malloc(nproc * sizeof(int));
-        displs = (int*) malloc(nproc * sizeof(int));
-
-        for (int p = 0; p < nproc; p++) {
-            int rows = (sizeA / nproc) + (p < extra ? 1 : 0);
-            recvcounts[p] = rows * (sizeB + 1);
-            displs[p] = (p == 0) ? 0 : displs[p - 1] + recvcounts[p - 1];
+#if DEBUG_MODE
+    if (rank != 0) {
+        for (int i = 0; i < my_rows; i++) {
+            MPI_Send(local_matrix[i], sizeB + 1, MPI_UNSIGNED_SHORT, 0, 100 + i, MPI_COMM_WORLD);
         }
     }
-
-    // Preparar buffer local para envio
-    unsigned char *local_dirs_flat = (unsigned char*) malloc(my_rows * (sizeB + 1) * sizeof(unsigned char));
-    for (int i = 0; i < my_rows; i++)
-        memcpy(&local_dirs_flat[i * (sizeB + 1)], directions[i], (sizeB + 1) * sizeof(unsigned char));
-
-    MPI_Gatherv(
-        local_dirs_flat, my_rows * (sizeB + 1), MPI_UNSIGNED_CHAR,
-        full_directions, recvcounts, displs, MPI_UNSIGNED_CHAR,
-        nproc - 1, MPI_COMM_WORLD
-    );
+#endif
 
     double total_end = MPI_Wtime();
     double total_time = total_end - total_start;
@@ -153,45 +139,50 @@ int main(int argc, char **argv) {
         printf("TotalTime: %.6f\n", total_time);
         printf("CommTime: %.6f\n", comm_time);
         printf("CalcTime: %.6f\n", calc_time);
-
-
-        #ifdef DEBUG
-            // Reconstruir a LCS
-            int i = sizeA;
-            int j = sizeB;
-            char *lcs = (char*) malloc((prev_row[sizeB] + 1) * sizeof(char));
-            int lcs_index = prev_row[sizeB];
-
-            lcs[lcs_index] = '\0';
-            while (i > 0 && j > 0) {
-                unsigned char dir = full_directions[(i - 1) * (sizeB + 1) + j];
-                if (dir == DIR_DIAG) {
-                    lcs[--lcs_index] = seqA[i - 1];
-                    i--;
-                    j--;
-                } else if (dir == DIR_UP) {
-                    i--;
-                } else if (dir == DIR_LEFT) {
-                    j--;
-                } else {
-                    break;
-                }
-            }
-            printf("LCS: %s\n", lcs);
-            free(lcs);
-        #endif
-        
-        free(full_directions);
-        free(recvcounts);
-        free(displs);
     }
 
-    free(local_dirs_flat);
-    for (int i = 0; i < my_rows; i++)
-        free(directions[i]);
-    free(directions);
+#if DEBUG_MODE
+    if (rank == 0) {
+        mtype **full_matrix = (mtype**) malloc((sizeA + 1) * sizeof(mtype*));
+        for (int i = 0; i <= sizeA; i++) {
+            full_matrix[i] = (mtype*) calloc(sizeB + 1, sizeof(mtype));
+        }
+
+        // Copiar linhas locais do rank 0
+        for (int i = 0; i < my_rows; i++) {
+            memcpy(full_matrix[my_start + i], local_matrix[i], (sizeB + 1) * sizeof(mtype));
+        }
+
+        // Receber linhas dos outros processos
+        for (int source = 1; source < nproc; source++) {
+            int source_rows = rows_per_proc + (source < extra ? 1 : 0);
+            int source_start = source * rows_per_proc + (source < extra ? source : extra) + 1;
+
+            for (int i = 0; i < source_rows; i++) {
+                MPI_Recv(full_matrix[source_start + i], sizeB + 1, MPI_UNSIGNED_SHORT, source, 100 + i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+
+        // Imprimir a matriz LCS completa
+        printf("\nMatriz LCS completa:\n");
+        for (int i = 1; i <= sizeA; i++) {
+            for (int j = 1; j <= sizeB; j++) {
+                printf("%3d ", full_matrix[i][j]);
+            }
+            printf("\n");
+        }
+
+        // Liberar matriz completa
+        for (int i = 0; i <= sizeA; i++) free(full_matrix[i]);
+        free(full_matrix);
+    }
+
+    // Liberar local_matrix de cada processo
+    for (int i = 0; i < my_rows; i++) free(local_matrix[i]);
+    free(local_matrix);
+#endif
+
     free(prev_row);
-    free(curr_row);
     free(seqA);
     free(seqB);
 
