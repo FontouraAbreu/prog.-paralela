@@ -1,16 +1,16 @@
 Threads: 2
-AVG Time: 42.515000 seconds
-Deviation: 2.365000
+AVG Time: 35.265500 seconds
+Deviation: 0.089915
 
 Threads: 4
-AVG Time: 21.900000 seconds
-Deviation: 0.810000
+AVG Time: 19.582000 seconds
+Deviation: 0.164061
 
 Threads: 8
-AVG Time: 11.470000 seconds
-Deviation: 0.420000
+AVG Time: 10.531000 seconds
+Deviation: 0.021424
 
 Threads: 16
-AVG Time: 12.270000 seconds
-Deviation: 0.740000
+AVG Time: 8.677000 seconds
+Deviation: 0.011874
 
