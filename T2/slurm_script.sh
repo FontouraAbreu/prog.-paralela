@@ -7,10 +7,10 @@
 #SBATCH --time=4:00:00
 #SBATCH --cpu-freq=high
 
-INPUT_SIZES=("50000" "80000" "100000")
+INPUT_SIZES=("20000" "30000" "40000" "50000" "60000" "70000" "80000" "90000" "100000" "110000" "120000" "130000" "140000" "150000" "160000" "170000" "180000" "190000" "200000")
 NPROCS_LIST=(2 4 6 8 12)
-REPS=20
-INPUT_DIR="./"
+REPS=2
+INPUT_DIR="./testes"
 
 for SIZE in "${INPUT_SIZES[@]}"; do
     FILE_A="${INPUT_DIR}/${SIZE}_A.in"
@@ -37,7 +37,8 @@ for SIZE in "${INPUT_SIZES[@]}"; do
             echo "Run $REP - Input Size: $SIZE - MPI with $NP processes"
             echo "--------------------------------------------"
 
-            PAR_TIME=$(mpirun -np $NP --map-by ppr:6:node ./par "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
+            # PAR_TIME=$(mpirun -np $NP --map-by ppr:6:node ./par "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
+            PAR_TIME=$(mpirun -np $NP  ./par "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
             PAR_TIMES[$NP]="${PAR_TIMES[$NP]} $PAR_TIME"
         done
     done
