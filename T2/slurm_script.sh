@@ -8,7 +8,7 @@
 #SBATCH --cpu-freq=high
 
 INPUT_SIZES=("20000" "30000" "40000" "50000" "60000" "70000" "80000" "90000" "100000" "110000" "120000" "130000" "140000" "150000" "160000" "170000" "180000" "190000" "200000")
-NPROCS_LIST=(2 4 6 8 12)
+NPROCS_LIST=(2 4 8)
 REPS=2
 INPUT_DIR="./testes"
 
@@ -18,7 +18,7 @@ for SIZE in "${INPUT_SIZES[@]}"; do
 
     SEQ_RESULTS=()
 
-    # Inicializa arrays de tempos para cada configuração paralela
+    # Inicializa array de tempos para cada configuração paralela
     declare -A PAR_TIMES
     for NP in "${NPROCS_LIST[@]}"; do
         PAR_TIMES[$NP]=""
@@ -29,7 +29,9 @@ for SIZE in "${INPUT_SIZES[@]}"; do
         echo "Run $REP - Input Size: $SIZE - Sequential"
         echo "============================================"
 
-        SEQ_TIME=$(./seq "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
+        SEQ_TIME=$(./seq "$FILE_A" "$FILE_B" | grep "Time:" | awk '{print $2}')
+        echo "SeqTime: $SEQ_TIME"
+
         SEQ_RESULTS+=("$SEQ_TIME")
 
         for NP in "${NPROCS_LIST[@]}"; do
@@ -37,8 +39,9 @@ for SIZE in "${INPUT_SIZES[@]}"; do
             echo "Run $REP - Input Size: $SIZE - MPI with $NP processes"
             echo "--------------------------------------------"
 
-            # PAR_TIME=$(mpirun -np $NP --map-by ppr:6:node ./par "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
-            PAR_TIME=$(mpirun -np $NP  ./par "$FILE_A" "$FILE_B" | grep "TotalTime:" | awk '{print $2}')
+            PAR_TIME=$(mpirun --bind-to core -np $NP ./par "$FILE_A" "$FILE_B" | grep "Time:" | awk '{print $2}')
+            echo "ParTime (NP=$NP): $PAR_TIME"
+
             PAR_TIMES[$NP]="${PAR_TIMES[$NP]} $PAR_TIME"
         done
     done
