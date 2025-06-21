@@ -1,4 +1,0 @@
-Command terminated by signal 2
-0.01
-Command terminated by signal 2
-0.03

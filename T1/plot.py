@@ -1,122 +1,79 @@
-#!/usr/bin/env python
-# encoding: utf-8
-
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib
-import sys
 
-
-def plot_speedup(csv_path):
-    df = pd.read_csv(csv_path)
-    df.set_index("Entry", inplace=True)
-
-    plt.figure(figsize=(10, 6))
-    for col in df.columns:
-        plt.plot(df.index, df[col], marker="o", label=f"{col} threads")
-
-    plt.title("Speedup vs Tamanho da Entrada")
-    plt.xlabel("Tamanho da Entrada")
-    plt.ylabel("Speedup")
-    plt.legend(title="Threads")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig("grafico_speedup.png")
-    print("Arquivo gerado: grafico_speedup.png")
-
-
-def plot_time(csv_path):
-    df = pd.read_csv(csv_path)
-    df.set_index("Entry", inplace=True)
-
-    plt.figure(figsize=(12, 7))
-
-    # Plot sequencial
+# ----- Speedup por entrada -----
+speedup_df = pd.read_csv("speedup.csv")
+plt.figure(figsize=(8, 5))
+for threads in [2, 4, 8, 16]:
     plt.plot(
-        df.index,
-        df["sequential"],
+        speedup_df["Entry"],
+        speedup_df[str(threads)],
         marker="o",
-        linestyle="--",
-        color="black",
-        label="Sequencial",
-        linewidth=2,
+        label=f"{threads} Threads",
+    )
+plt.title("Speedup por Tamanho de Entrada")
+plt.xlabel("Entrada")
+plt.ylabel("Speedup")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("speedup.png")
+plt.close()
+
+# ----- Eficiência Forte -----
+strong_df = pd.read_csv("strong_efficiency.csv")
+plt.figure(figsize=(6, 4))
+plt.plot(strong_df["Threads"], strong_df["Efficiency"], marker="s", color="blue")
+plt.title("Eficiência Forte")
+plt.xlabel("Número de Threads")
+plt.ylabel("Eficiência")
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("strong_efficiency.png")
+plt.close()
+
+# ----- Eficiência Fraca -----
+weak_df = pd.read_csv("weak_efficiency.csv")
+plt.figure(figsize=(6, 4))
+plt.plot(weak_df["Threads"], weak_df["Efficiency"], marker="^", color="green")
+plt.title("Eficiência Fraca")
+plt.xlabel("Número de Threads")
+plt.ylabel("Eficiência")
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("weak_efficiency.png")
+plt.close()
+
+# ----- Tempo por Entrada e Threads -----
+time_df = pd.read_csv("time.csv")
+plt.figure(figsize=(8, 5))
+
+# Plot para cada quantidade de threads
+for threads in [2, 4, 8, 16]:
+    col_name = f"{threads}-avg"
+    plt.plot(
+        time_df["Entry"], time_df[col_name], marker="o", label=f"{threads} Threads"
     )
 
-    # Plot versões paralelas
-    colors = ["blue", "green", "orange", "red"]
-    for idx, threads in enumerate([2, 4, 8, 16]):
-        avg_col = f"{threads}-avg"
-        if avg_col in df.columns:
-            plt.plot(
-                df.index,
-                df[avg_col],
-                marker="o",
-                color=colors[idx],
-                label=f"{threads} threads",
-                linewidth=2,
-            )
+# Plot do sequencial
+plt.plot(
+    time_df["Entry"],
+    time_df["sequential"],
+    marker="x",
+    linestyle="--",
+    color="black",
+    label="Sequencial",
+)
 
-    plt.title("Tempo de Execução vs Tamanho da Entrada", fontsize=16)
-    plt.xlabel("Tamanho da Entrada", fontsize=14)
-    plt.ylabel("Tempo (s)", fontsize=14)
-    plt.legend(fontsize=12)
-    plt.grid(True, linestyle="--", alpha=0.7)
-    plt.tight_layout()
+plt.title("Tempo de Execução por Entrada e Threads")
+plt.xlabel("Entrada")
+plt.ylabel("Tempo Médio (s)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("execution_time.png")
+plt.close()
 
-    plt.savefig("grafico_tempo.png", dpi=300)
-    print("Arquivo gerado: grafico_tempo.png")
-
-
-def plot_weak_scalability(csv_path):
-    df = pd.read_csv(csv_path)
-
-    # Converte colunas numéricas
-    for col in df.columns:
-        if col != "Entry":
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    entries = df["Entry"].astype(float)
-    threads = [2, 4, 8]
-
-    plt.figure(figsize=(8, 6))
-
-    for i, row in df.iterrows():
-        tempos = [row[f"{t}-avg"] for t in threads]
-        plt.plot(
-            threads,
-            tempos,
-            marker="o",
-            linestyle="-",
-            label=f"Entrada {int(row['Entry'])}",
-        )
-
-    plt.title("Escalabilidade Fraca - Tempo vs Número de Threads")
-    plt.xlabel("Número de Threads")
-    plt.ylabel("Tempo de Execução (s)")
-    plt.xticks(threads)
-    plt.grid(True)
-    plt.legend(title="Tamanho da Entrada", loc="upper right")
-    plt.tight_layout()
-    plt.savefig("grafico_escalabilidade_fraca_linhas_threads.png")
-    print("Arquivo gerado: grafico_escalabilidade_fraca_linhas_threads.png")
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Uso: python plot.py [spd|time|strong|both]")
-        sys.exit(1)
-
-    mode = sys.argv[1]
-    if mode == "spd":
-        plot_speedup("speedup.csv")
-    elif mode == "time":
-        plot_time("time.csv")
-    elif mode == "strong":
-        plot_strong_scalability("strong-scalability/time.csv")
-    elif mode == "weak":
-        plot_weak_scalability("time.csv")
-    elif mode == "both":
-        plot_speedup("speedup.csv")
-        plot_time("time.csv")
-    else:
-        print("Modo inválido. Use 'spd', 'time', 'strong' ou 'both'.")
+print(
+    "✅ Gráficos gerados: speedup.png, strong_efficiency.png, weak_efficiency.png, execution_time.png"
+)
