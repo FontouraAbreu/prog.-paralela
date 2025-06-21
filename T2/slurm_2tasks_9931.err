@@ -1,0 +1,39 @@
+[node2:398342] *** Process received signal ***
+[node2:398342] Signal: Segmentation fault (11)
+[node2:398342] Signal code: Address not mapped (1)
+[node2:398342] Failing at address: (nil)
+[node2:398342] [ 0] /lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7029d1ac9330]
+[node2:398342] [ 1] /lib/x86_64-linux-gnu/libc.so.6(+0x1a446d)[0x7029d1c2846d]
+[node2:398342] [ 2] /usr/lib/x86_64-linux-gnu/openmpi/lib/openmpi3/mca_btl_tcp.so(mca_btl_tcp_frag_recv+0x1a6)[0x7029c9cf64a6]
+[node2:398342] [ 3] /usr/lib/x86_64-linux-gnu/openmpi/lib/openmpi3/mca_btl_tcp.so(+0xaa9d)[0x7029c9cf6a9d]
+[node2:398342] [ 4] /lib/x86_64-linux-gnu/libevent_core-2.1.so.7(+0x1f38c)[0x7029d177b38c]
+[node2:398342] [ 5] /lib/x86_64-linux-gnu/libevent_core-2.1.so.7(event_base_loop+0x4af)[0x7029d177cfaf]
+[node2:398342] [ 6] /lib/x86_64-linux-gnu/libopen-pal.so.40(+0x7f46e)[0x7029d198b46e]
+[node2:398342] [ 7] /lib/x86_64-linux-gnu/libopen-pal.so.40(opal_progress+0x85)[0x7029d1936405]
+[node2:398342] [ 8] /usr/lib/x86_64-linux-gnu/openmpi/lib/openmpi3/mca_pml_ob1.so(mca_pml_ob1_recv+0x315)[0x7029c98a5245]
+[node2:398342] [ 9] /usr/lib/x86_64-linux-gnu/openmpi/lib/openmpi3/mca_coll_basic.so(mca_coll_basic_gatherv_intra+0x178)[0x7029c982b1e8]
+[node2:398342] [10] /lib/x86_64-linux-gnu/libmpi.so.40(MPI_Gatherv+0xf9)[0x7029d1d13659]
+[node2:398342] [11] ./par(+0x1c9d)[0x58c0a0169c9d]
+[node2:398342] [12] /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca)[0x7029d1aae1ca]
+[node2:398342] [13] /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b)[0x7029d1aae28b]
+[node2:398342] [14] ./par(+0x1ef5)[0x58c0a0169ef5]
+[node2:398342] *** End of error message ***
+[node1][[23315,1],0][../../../../../../opal/mca/btl/tcp/btl_tcp_frag.c:135:mca_btl_tcp_frag_send] mca_btl_tcp_frag_send: writev failed: Connection reset by peer (104)
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+WARNING: Open MPI failed to TCP connect to a peer MPI process.  This
+should not happen.
+
+Your Open MPI job may now hang or fail.
+
+  Local host: node1
+  PID:        462981
+  Message:    connect() to 10.0.1.103:1029 failed
+  Error:      Operation now in progress (115)
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun noticed that process rank 11 with PID 398342 on node node2 exited on signal 11 (Segmentation fault).
+--------------------------------------------------------------------------
