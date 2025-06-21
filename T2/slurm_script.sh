@@ -39,7 +39,7 @@ for SIZE in "${INPUT_SIZES[@]}"; do
             echo "Run $REP - Input Size: $SIZE - MPI with $NP processes"
             echo "--------------------------------------------"
 
-            PAR_TIME=$(mpirun --bind-to core -np $NP ./par "$FILE_A" "$FILE_B" | grep "Time:" | awk '{print $2}')
+            PAR_TIME=$(mpirun -np $NP ./par "$FILE_A" "$FILE_B" | grep "Time:" | awk '{print $2}')
             echo "ParTime (NP=$NP): $PAR_TIME"
 
             PAR_TIMES[$NP]="${PAR_TIMES[$NP]} $PAR_TIME"
