@@ -1,4 +1,0 @@
-Threads: 1
-AVG Time: 0.012051 seconds
-Deviation: 0.003252
-

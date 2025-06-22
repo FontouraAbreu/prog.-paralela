@@ -56,6 +56,7 @@ int main(int argc, char **argv) {
         sizeB = strlen(seqB);
     }
 
+    // envia para todos os processos o tamanho das sequências
     MPI_Bcast(&sizeA, 1, MPI_LONG, 0, MPI_COMM_WORLD);
     MPI_Bcast(&sizeB, 1, MPI_LONG, 0, MPI_COMM_WORLD);
 
@@ -63,13 +64,25 @@ int main(int argc, char **argv) {
         seqA = (char*) malloc(sizeA + 1);
         seqB = (char*) malloc(sizeB + 1);
     }
+    // envia as sequências para todos os processos
     MPI_Bcast(seqA, sizeA + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
     MPI_Bcast(seqB, sizeB + 1, MPI_CHAR, 0, MPI_COMM_WORLD);
 
+    // calcula quantas linhas cada processo vai receber
     int rows_per_proc = sizeA / nproc;
     int extra = sizeA % nproc;
-    int my_start = rank * rows_per_proc + (rank < extra ? rank : extra) + 1;
-    int my_rows = rows_per_proc + (rank < extra ? 1 : 0);
+
+    // define o início e o número de linhas que cada processo vai calcular
+    // Calcula o índice inicial (my_start) e o número de linhas (my_rows) para cada processo
+    int my_rows;
+    int my_start;
+    if (rank < extra) {
+        my_rows = rows_per_proc + 1;
+        my_start = rank * my_rows + 1;
+    } else {
+        my_rows = rows_per_proc;
+        my_start = extra * (rows_per_proc + 1) + (rank - extra) * rows_per_proc + 1;
+    }
 
 #if DEBUG_MODE
     mtype **local_matrix = (mtype**) malloc(my_rows * sizeof(mtype*));
@@ -80,9 +93,10 @@ int main(int argc, char **argv) {
 
     mtype *prev_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
 
-    MPI_Request req_send, req_recv;
+    // inicialia a variavel MPI Status
     MPI_Status status;
 
+    // se nao for o primeiro processo, recebe a linha anterior do processo anterior
     if (my_start != 1) {
         double t1_comm = MPI_Wtime();
         MPI_Recv(prev_row, sizeB + 1, MPI_UNSIGNED_SHORT, rank - 1, 0, MPI_COMM_WORLD, &status);
@@ -91,31 +105,42 @@ int main(int argc, char **argv) {
     }
 
     double t1_calc = MPI_Wtime();
+    // calcula a matriz LCS para as linhas atribuídas a este processo
+    // itera sobre as linhas que este processo deve calcular
+    // e preenche a matriz LCS localmente
     for (int i = 0; i < my_rows; i++) {
         int global_i = my_start + i;
 
-#if DEBUG_MODE
+        // Se DEBUG_MODE estiver ativado, usa a matriz local
+        // caso contrário, aloca memória dinamicamente para a linha atual
+        #if DEBUG_MODE
         mtype *curr_row = local_matrix[i];
-#else
+        #else
         mtype *curr_row = (mtype*) calloc(sizeB + 1, sizeof(mtype));
-#endif
+        #endif
 
+        // Calculas as linhas da matriz LCS
         for (int j = 1; j <= sizeB; j++) {
+            // se os caracteres são iguais, incrementa o valor da diagonal anterior
             if (seqA[global_i - 1] == seqB[j - 1]) {
                 curr_row[j] = prev_row[j - 1] + 1;
+            // se os caracteres são diferentes, pega o máximo entre a linha anterior e a coluna anterior
             } else {
                 curr_row[j] = max(prev_row[j], curr_row[j - 1]);
             }
         }
+        // substitui a linha anterior pela linha atual
+        // para o próximo loop ou processo calcular
         memcpy(prev_row, curr_row, (sizeB + 1) * sizeof(mtype));
 
-#if !DEBUG_MODE
+        #if !DEBUG_MODE
         free(curr_row);
-#endif
+        #endif
     }
     double t2_calc = MPI_Wtime();
     calc_time += (t2_calc - t1_calc);
 
+    // se não for o último processo, envia a linha anterior para o próximo processo
     if (rank != nproc - 1) {
         double t1_comm = MPI_Wtime();
         MPI_Send(prev_row, sizeB + 1, MPI_UNSIGNED_SHORT, rank + 1, 0, MPI_COMM_WORLD);
@@ -123,17 +148,20 @@ int main(int argc, char **argv) {
         comm_time += (t2_comm - t1_comm);
     }
 
-#if DEBUG_MODE
+    // se DEBUG_MODE estiver ativado, envia a matriz local para o rank 0
+    #if DEBUG_MODE
     if (rank != 0) {
         for (int i = 0; i < my_rows; i++) {
             MPI_Send(local_matrix[i], sizeB + 1, MPI_UNSIGNED_SHORT, 0, 100 + i, MPI_COMM_WORLD);
         }
     }
-#endif
+    #endif
 
     double total_end = MPI_Wtime();
     double total_time = total_end - total_start;
 
+    // se for o último processo, imprime o resultado
+    // e o tempo total de execução
     if (rank == nproc - 1) {
         printf("score: %d\n", prev_row[sizeB]);
         printf("TotalTime: %.6f\n", total_time);
@@ -141,7 +169,8 @@ int main(int argc, char **argv) {
         printf("CalcTime: %.6f\n", calc_time);
     }
 
-#if DEBUG_MODE
+    // se DEBUG_MODE estiver ativado, imprime a matriz LCS completa
+    #if DEBUG_MODE
     if (rank == 0) {
         mtype **full_matrix = (mtype**) malloc((sizeA + 1) * sizeof(mtype*));
         for (int i = 0; i <= sizeA; i++) {
@@ -180,7 +209,7 @@ int main(int argc, char **argv) {
     // Liberar local_matrix de cada processo
     for (int i = 0; i < my_rows; i++) free(local_matrix[i]);
     free(local_matrix);
-#endif
+    #endif
 
     free(prev_row);
     free(seqA);
