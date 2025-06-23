@@ -20,12 +20,12 @@ deviation_df["Entry"] = deviation_df["Entry"].astype(int)
 plt.figure(figsize=(9, 6))
 entries = time_df["Entry"]
 
-for threads in [2, 4, 8, 10, 12]:
+for processes in [2, 4, 8, 10, 12]:
     times = []
     for entry in entries:
         row = time_df[time_df["Entry"] == entry].iloc[0]
-        times.append(row[f"{threads}-avg"])
-    plt.plot(entries, times, marker="o", label=f"{threads} Threads")
+        times.append(row[f"{processes}-avg"])
+    plt.plot(entries, times, marker="o", label=f"{processes} Processos")
 
 # Linha pontilhada para o tempo sequencial
 seq_times = time_df["sequential"]
@@ -42,12 +42,12 @@ plt.close()
 
 # --------- PLOT 2: SPEEDUP vs TAMANHO DA ENTRADA ---------
 plt.figure(figsize=(9, 6))
-for threads in [2, 4, 8, 10, 12]:
+for processes in [2, 4, 8, 10, 12]:
     speedups = []
     for entry in speedup_df["Entry"]:
         row = speedup_df[speedup_df["Entry"] == entry].iloc[0]
-        speedups.append(row[str(threads)])
-    plt.plot(speedup_df["Entry"], speedups, marker="o", label=f"{threads} Threads")
+        speedups.append(row[str(processes)])
+    plt.plot(speedup_df["Entry"], speedups, marker="o", label=f"{processes} Processos")
 
 plt.xlabel("Tamanho da Entrada")
 plt.ylabel("Speedup")
@@ -68,7 +68,7 @@ plt.plot(
     label="Eficiência Observada",
 )
 plt.axhline(1.0, color="black", linestyle="--", label="Eficiência Ideal (1.0)")
-plt.xlabel("Número de Threads")
+plt.xlabel("Número de Processos")
 plt.ylabel("Eficiência")
 plt.title("Eficiência da Escalabilidade Forte")
 plt.legend()
@@ -87,7 +87,7 @@ plt.plot(
     label="Eficiência Observada",
 )
 plt.axhline(1.0, color="black", linestyle="--", label="Eficiência Ideal (1.0)")
-plt.xlabel("Número de Threads")
+plt.xlabel("Número de Processos")
 plt.ylabel("Eficiência")
 plt.title("Eficiência da Escalabilidade Fraca")
 plt.legend()
@@ -101,26 +101,40 @@ plt.figure(figsize=(10, 6))
 width = 3000  # Largura das barras
 x = comm_df["Entry"]
 
-for threads in [2, 4, 8, 10, 12]:
-    total = comm_df[f"{threads}-total"]
-    comm = comm_df[f"{threads}-comm"]
+# Definir pares de cores: (cálculo - claro, comunicação - escuro)
+color_pairs = {
+    2: ("lightgreen", "darkgreen"),
+    4: ("mediumspringgreen", "forestgreen"),
+    8: ("palegreen", "seagreen"),
+    10: ("aquamarine", "teal"),
+    12: ("lightcyan", "darkcyan"),
+}
+
+for processes in [2, 4, 8, 10, 12]:
+    total = comm_df[f"{processes}-total"]
+    comm = comm_df[f"{processes}-comm"]
     calc = total - comm
+
+    calc_color, comm_color = color_pairs[processes]
+
     plt.bar(
-        x + (threads - 8) * width / 5,
+        x + (processes - 8) * width / 5,
         calc,
         width=width / 5,
-        label=f"{threads} Threads - Cálculo",
+        label=f"{processes} Processos - Cálculo",
         bottom=comm,
-        color="green",
-        alpha=0.8,
+        color=calc_color,
+        edgecolor="black",
+        alpha=0.9,
     )
     plt.bar(
-        x + (threads - 8) * width / 5,
+        x + (processes - 8) * width / 5,
         comm,
         width=width / 5,
-        label=f"{threads} Threads - Comunicação",
-        color="red",
-        alpha=0.7,
+        label=f"{processes} Processos - Comunicação",
+        color=comm_color,
+        edgecolor="black",
+        alpha=0.9,
     )
 
 plt.xlabel("Tamanho da Entrada")
@@ -131,18 +145,19 @@ plt.tight_layout()
 plt.savefig("stacked_calc_comm.png")
 plt.close()
 
+
 # --------- PLOT 6: CRESCIMENTO DOS DESVIOS PADRÃO COM O NÚMERO DE PROCESSOS ---------
 plt.figure(figsize=(9, 6))
 
-# Threads que temos desvio: sequential, 2, 4, 8, 10, 12
+# Colunas de desvio
 threads_list = ["sequential-dev", "2-dev", "4-dev", "8-dev", "10-dev", "12-dev"]
 threads_labels = [
-    "Seq",
-    "2 Threads",
-    "4 Threads",
-    "8 Threads",
-    "10 Threads",
-    "12 Threads",
+    "Sequencial",
+    "2 Processos",
+    "4 Processos",
+    "8 Processos",
+    "10 Processos",
+    "12 Processos",
 ]
 
 for idx, dev_col in enumerate(threads_list):
