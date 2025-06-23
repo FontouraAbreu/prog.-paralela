@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Ler os CSVs principais
 speedup_df = pd.read_csv("speedup.csv")
@@ -7,11 +8,13 @@ time_df = pd.read_csv("time.csv")
 strong_df = pd.read_csv("strong_efficiency.csv")
 weak_df = pd.read_csv("weak_efficiency.csv")
 comm_df = pd.read_csv("comm_time.csv")  # Novo CSV com total e comunicação juntos
+deviation_df = pd.read_csv("time.csv")  # Mesmo CSV de tempos contém os desvios
 
 # Converter entradas para int
 time_df["Entry"] = time_df["Entry"].astype(int)
 speedup_df["Entry"] = speedup_df["Entry"].astype(int)
 comm_df["Entry"] = comm_df["Entry"].astype(int)
+deviation_df["Entry"] = deviation_df["Entry"].astype(int)
 
 # --------- PLOT 1: TEMPO TOTAL vs TAMANHO DA ENTRADA ---------
 plt.figure(figsize=(9, 6))
@@ -93,10 +96,9 @@ plt.tight_layout()
 plt.savefig("weak_efficiency.png")
 plt.close()
 
-
-# --------- PLOT EXTRA: TEMPO TOTAL x TEMPO DE COMUNICAÇÃO (EMPILHADO) ---------
+# --------- PLOT 5: TEMPO TOTAL x TEMPO DE COMUNICAÇÃO (EMPILHADO) ---------
 plt.figure(figsize=(10, 6))
-width = 3000  # Largura das barras para melhor separação
+width = 3000  # Largura das barras
 x = comm_df["Entry"]
 
 for threads in [2, 4, 8, 10, 12]:
@@ -109,13 +111,15 @@ for threads in [2, 4, 8, 10, 12]:
         width=width / 5,
         label=f"{threads} Threads - Cálculo",
         bottom=comm,
+        color="green",
+        alpha=0.8,
     )
     plt.bar(
         x + (threads - 8) * width / 5,
         comm,
         width=width / 5,
         label=f"{threads} Threads - Comunicação",
-        color="orange",
+        color="red",
         alpha=0.7,
     )
 
@@ -125,6 +129,37 @@ plt.title("Composição do Tempo Total (Cálculo x Comunicação)")
 plt.legend()
 plt.tight_layout()
 plt.savefig("stacked_calc_comm.png")
+plt.close()
+
+# --------- PLOT 6: CRESCIMENTO DOS DESVIOS PADRÃO COM O NÚMERO DE PROCESSOS ---------
+plt.figure(figsize=(9, 6))
+
+# Threads que temos desvio: sequential, 2, 4, 8, 10, 12
+threads_list = ["sequential-dev", "2-dev", "4-dev", "8-dev", "10-dev", "12-dev"]
+threads_labels = [
+    "Seq",
+    "2 Threads",
+    "4 Threads",
+    "8 Threads",
+    "10 Threads",
+    "12 Threads",
+]
+
+for idx, dev_col in enumerate(threads_list):
+    plt.plot(
+        deviation_df["Entry"],
+        deviation_df[dev_col],
+        marker="o",
+        label=threads_labels[idx],
+    )
+
+plt.xlabel("Tamanho da Entrada")
+plt.ylabel("Desvio Padrão (s)")
+plt.title("Crescimento do Desvio Padrão com o Número de Processos")
+plt.legend(title="Configuração")
+plt.grid(True, linestyle="--", alpha=0.7)
+plt.tight_layout()
+plt.savefig("std_dev_growth.png")
 plt.close()
 
 # --------- TABELA DE TEMPOS COM DESVIO PADRÃO ---------
@@ -137,3 +172,4 @@ print("- speedup_vs_entry.png")
 print("- strong_efficiency.png")
 print("- weak_efficiency.png")
 print("- stacked_calc_comm.png")
+print("- std_dev_growth.png")
